@@ -8,6 +8,7 @@ import { RedisModule } from './common/redis/redis.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { AiAgentModule } from './modules/ai-agent/ai-agent.module';
+import { HealthModule } from './modules/health/health.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -41,6 +42,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     RealtimeModule,
     QueueModule,
     AiAgentModule,
+    HealthModule,
     UsersModule,
     AuthModule,
     ProductsModule,
