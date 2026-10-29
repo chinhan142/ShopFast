@@ -5,6 +5,8 @@ import { validateEnvironment } from './common/config/env.validation';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ProductsModule } from './modules/products/products.module';
+import { OrdersModule } from './modules/orders/orders.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -18,6 +20,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     PrismaModule,
     UsersModule,
     AuthModule,
+    ProductsModule,
+    OrdersModule,
   ],
   providers: [
     {
