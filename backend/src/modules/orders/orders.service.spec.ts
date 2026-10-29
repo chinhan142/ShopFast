@@ -1,12 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { RedisService } from '../../common/redis/redis.service';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { OrderStatus, Role } from '@prisma/client';
 
 describe('OrdersService', () => {
   let service: OrdersService;
   let prisma: jest.Mocked<PrismaService>;
+  let redis: jest.Mocked<RedisService>;
 
   const mockProduct = {
     id: 'prod-1',
@@ -28,15 +30,25 @@ describe('OrdersService', () => {
       },
     };
 
+    const mockRedis = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn(),
+      delByPattern: jest.fn().mockResolvedValue(1),
+      isAvailable: jest.fn().mockReturnValue(true),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: RedisService, useValue: mockRedis },
       ],
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
     prisma = module.get(PrismaService);
+    redis = module.get(RedisService);
   });
 
   it('should be defined', () => {
@@ -117,6 +129,7 @@ describe('OrdersService', () => {
 
       expect(result.id).toBe('order-1');
       expect(result.totalAmount).toBe(34000000);
+      expect(redis.delByPattern).toHaveBeenCalledWith('products:*');
     });
   });
 

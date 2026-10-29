@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RedisService } from '../../common/redis/redis.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { GetProductsQueryDto, ProductSortBy, SortOrder } from './dto/get-products-query.dto';
@@ -7,7 +8,12 @@ import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(ProductsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async findAll(query: GetProductsQueryDto) {
     const {
@@ -22,6 +28,19 @@ export class ProductsService {
       sortOrder = SortOrder.DESC,
     } = query;
 
+    // F04 Cache Key based on query parameters
+    const cacheKey = `products:list:${JSON.stringify({ search, categoryId, brand, minPrice, maxPrice, page, limit, sortBy, sortOrder })}`;
+
+    // 1. Try fetching from Redis Cache (Target: < 20ms)
+    const cachedData = await this.redis.get<{ items: any[]; meta: any }>(cacheKey);
+    if (cachedData) {
+      return {
+        ...cachedData,
+        _cached: true,
+      };
+    }
+
+    // 2. Cache Miss or Redis Unavailable -> Query Database
     const where: Prisma.ProductWhereInput = {
       isActive: true,
     };
@@ -67,7 +86,7 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    return {
+    const result = {
       items,
       meta: {
         total,
@@ -76,10 +95,19 @@ export class ProductsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    // 3. Store in Redis Cache (TTL: 5 minutes)
+    await this.redis.set(cacheKey, result, 300);
+
+    return result;
   }
 
   async findAllCategories() {
-    return this.prisma.category.findMany({
+    const cacheKey = 'products:categories';
+    const cached = await this.redis.get<any[]>(cacheKey);
+    if (cached) return cached;
+
+    const categories = await this.prisma.category.findMany({
       include: {
         _count: {
           select: { products: true },
@@ -87,9 +115,25 @@ export class ProductsService {
       },
       orderBy: { name: 'asc' },
     });
+
+    await this.redis.set(cacheKey, categories, 600); // 10 minutes TTL
+    return categories;
   }
 
   async findById(id: string) {
+    const cacheKey = `products:detail:${id}`;
+
+    // 1. Try cache
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) {
+      if (cached._notFound) {
+        // Cache Penetration Protection: Do not re-query non-existent keys
+        throw new NotFoundException(`Không tìm thấy sản phẩm có ID: ${id}`);
+      }
+      return cached;
+    }
+
+    // 2. Query DB
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -100,21 +144,35 @@ export class ProductsService {
     });
 
     if (!product) {
+      // F04 Cache Penetration: Cache empty state for 30s
+      await this.redis.set(cacheKey, { _notFound: true }, 30);
       throw new NotFoundException(`Không tìm thấy sản phẩm có ID: ${id}`);
     }
 
+    // Cache product detail for 10 minutes
+    await this.redis.set(cacheKey, product, 600);
     return product;
   }
 
   async findBySku(sku: string) {
+    const formattedSku = sku.toUpperCase().trim();
+    const cacheKey = `products:sku:${formattedSku}`;
+
+    const cached = await this.redis.get<any>(cacheKey);
+    if (cached) return cached;
+
     const product = await this.prisma.product.findUnique({
-      where: { sku: sku.toUpperCase().trim() },
+      where: { sku: formattedSku },
       include: {
         category: {
           select: { id: true, name: true, slug: true },
         },
       },
     });
+
+    if (product) {
+      await this.redis.set(cacheKey, product, 600);
+    }
 
     return product;
   }
@@ -130,7 +188,7 @@ export class ProductsService {
 
     const slug = this.generateSlug(dto.name) + '-' + Date.now().toString(36);
 
-    return this.prisma.product.create({
+    const created = await this.prisma.product.create({
       data: {
         sku: dto.sku.toUpperCase().trim(),
         name: dto.name.trim(),
@@ -147,12 +205,17 @@ export class ProductsService {
         category: true,
       },
     });
+
+    // Invalidate list caches
+    await this.invalidateProductCaches();
+
+    return created;
   }
 
   async update(id: string, dto: UpdateProductDto) {
     await this.findById(id);
 
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id },
       data: {
         name: dto.name?.trim(),
@@ -168,15 +231,38 @@ export class ProductsService {
         category: true,
       },
     });
+
+    // F04 Cache Invalidation: When price or stock updates, immediately clear related caches
+    await this.invalidateProductCaches(id, updated.sku);
+
+    return updated;
   }
 
   async updateStock(id: string, newStock: number) {
-    await this.findById(id);
+    const product = await this.findById(id);
 
-    return this.prisma.product.update({
+    const updated = await this.prisma.product.update({
       where: { id },
       data: { stock: newStock },
     });
+
+    // F04 Invalidate immediately
+    await this.invalidateProductCaches(id, product.sku);
+
+    return updated;
+  }
+
+  /**
+   * F04 Invalidate all related product cache keys
+   */
+  async invalidateProductCaches(productId?: string, sku?: string) {
+    await Promise.all([
+      this.redis.delByPattern('products:list:*'),
+      this.redis.del('products:categories'),
+      productId ? this.redis.del(`products:detail:${productId}`) : Promise.resolve(),
+      sku ? this.redis.del(`products:sku:${sku.toUpperCase().trim()}`) : Promise.resolve(),
+    ]);
+    this.logger.log(`🧹 Product cache invalidated: ${productId || 'all'}`);
   }
 
   private generateSlug(text: string): string {
