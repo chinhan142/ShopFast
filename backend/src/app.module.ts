@@ -7,6 +7,7 @@ import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { QueueModule } from './modules/queue/queue.module';
+import { AiAgentModule } from './modules/ai-agent/ai-agent.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -39,6 +40,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     RedisModule,
     RealtimeModule,
     QueueModule,
+    AiAgentModule,
     UsersModule,
     AuthModule,
     ProductsModule,
