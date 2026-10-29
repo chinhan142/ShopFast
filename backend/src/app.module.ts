@@ -24,17 +24,12 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       isGlobal: true,
       validate: validateEnvironment,
     }),
-    // F03 Throttler: General (100 req/min) & Strict (5 req/min)
+    // F03 Throttler: 300 req/min per IP/User to allow smooth browsing & testing
     ThrottlerModule.forRoot([
       {
         name: 'default',
         ttl: 60000,
-        limit: 100,
-      },
-      {
-        name: 'strict',
-        ttl: 60000,
-        limit: 5,
+        limit: 300,
       },
     ]),
     PrismaModule,
