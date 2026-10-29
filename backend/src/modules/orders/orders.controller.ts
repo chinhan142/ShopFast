@@ -9,6 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -28,9 +29,11 @@ export class OrdersController {
 
   @Post()
   @Roles(Role.CUSTOMER, Role.ADMIN)
-  @ApiOperation({ summary: 'Khách hàng tạo đơn hàng mới (Kiểm soát tồn kho bằng Transaction)' })
+  @Throttle({ strict: { limit: 10, ttl: 60000 } })
+  @ApiOperation({ summary: 'Khách hàng tạo đơn hàng mới (Kiểm soát tồn kho bằng Transaction & Throttled: 10 req/min)' })
   @ApiResponse({ status: 201, description: 'Tạo đơn hàng thành công' })
   @ApiResponse({ status: 400, description: 'Hết hàng hoặc số lượng không đủ' })
+  @ApiResponse({ status: 429, description: 'Thao tác đặt hàng quá nhanh' })
   createOrder(
     @CurrentUser('userId') userId: string,
     @Body() dto: CreateOrderDto,

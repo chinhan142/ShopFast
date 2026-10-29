@@ -6,6 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RedisService } from '../../common/redis/redis.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
 import { OrderStatus, Role } from '@prisma/client';
@@ -14,11 +15,14 @@ import { OrderStatus, Role } from '@prisma/client';
 export class OrdersService {
   private readonly logger = new Logger(OrdersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async createOrder(userId: string, dto: CreateOrderDto) {
     // Execute atomic transaction for inventory checking & order creation (Concurrency Control)
-    return this.prisma.$transaction(async (tx) => {
+    const order = await this.prisma.$transaction(async (tx) => {
       let totalAmount = 0;
       const orderItemsData: Array<{
         productId: string;
@@ -71,7 +75,7 @@ export class OrdersService {
       const orderCode = `SF-${datePart}-${randomSuffix}`;
 
       // Create Order with Items
-      const order = await tx.order.create({
+      const createdOrder = await tx.order.create({
         data: {
           orderCode,
           userId,
@@ -100,10 +104,14 @@ export class OrdersService {
         },
       });
 
-      this.logger.log(`Order created successfully: ${order.orderCode} (Total: ${order.totalAmount} VND) by User ${userId}`);
-
-      return order;
+      this.logger.log(`Order created successfully: ${createdOrder.orderCode} (Total: ${createdOrder.totalAmount} VND) by User ${userId}`);
+      return createdOrder;
     });
+
+    // F04 Cache Invalidation: Invalidate product caches when stock is decremented
+    await this.redis.delByPattern('products:*');
+
+    return order;
   }
 
   async findMyOrders(userId: string, page = 1, limit = 10) {
@@ -255,7 +263,7 @@ export class OrdersService {
 
     // If order is cancelled and was not already cancelled, restore inventory
     if (newStatus === OrderStatus.CANCELLED && order.status !== OrderStatus.CANCELLED) {
-      return this.prisma.$transaction(async (tx) => {
+      const updated = await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           await tx.product.update({
             where: { id: item.productId },
@@ -278,6 +286,10 @@ export class OrdersService {
         this.logger.log(`Order ${order.orderCode} cancelled. Stock restored.`);
         return updatedOrder;
       });
+
+      // Invalidate product caches when stock restored
+      await this.redis.delByPattern('products:*');
+      return updated;
     }
 
     const updatedOrder = await this.prisma.order.update({
