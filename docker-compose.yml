@@ -1,0 +1,98 @@
+services:
+  # ----------------------------------------------------
+  # 1. PostgreSQL 16 Database
+  # ----------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: shopfast_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shopfast_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shopfast_secure_password_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-shopfast_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - shopfast-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-shopfast_user} -d ${POSTGRES_DB:-shopfast_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------
+  # 2. Redis 7 In-Memory Cache & Queue
+  # ----------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: shopfast_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - shopfast-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------
+  # 3. NestJS 10 Backend API Service
+  # ----------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: shopfast_backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-shopfast_user}:${POSTGRES_PASSWORD:-shopfast_secure_password_2026}@postgres:5432/${POSTGRES_DB:-shopfast_db}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-f9d45e82b71946a39281c70e2819385bf18a02c5de783921a48c73b0928a385f}
+      JWT_EXPIRATION: 15m
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-73e891c098234ab89c2018471b0928374f6710293847561a0b9c8d7e6f5a4b3c}
+      JWT_REFRESH_EXPIRATION: 7d
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - shopfast-net
+
+  # ----------------------------------------------------
+  # 4. Vite React Tech Frontend
+  # ----------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: shopfast_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - shopfast-net
+
+networks:
+  shopfast-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
