@@ -9,7 +9,10 @@ export interface EnvironmentVariables {
   REDIS_HOST: string;
   REDIS_PORT: number;
   REDIS_PASSWORD?: string;
-  GEMINI_API_KEY?: string;
+  AI_PROVIDER?: string;
+  AI_API_KEY?: string;
+  AI_BASE_URL?: string;
+  AI_MODEL?: string;
 }
 
 export function validateEnvironment(config: Record<string, unknown>): EnvironmentVariables {
@@ -51,6 +54,9 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
     REDIS_HOST: (config['REDIS_HOST'] as string) || 'localhost',
     REDIS_PORT: Number(config['REDIS_PORT']) || 6379,
     REDIS_PASSWORD: config['REDIS_PASSWORD'] as string | undefined,
-    GEMINI_API_KEY: config['GEMINI_API_KEY'] as string | undefined,
+    AI_PROVIDER: (config['AI_PROVIDER'] as string) || 'deepseek',
+    AI_API_KEY: config['AI_API_KEY'] as string | undefined,
+    AI_BASE_URL: (config['AI_BASE_URL'] as string) || 'https://api.deepseek.com',
+    AI_MODEL: (config['AI_MODEL'] as string) || 'deepseek-chat',
   };
 }
