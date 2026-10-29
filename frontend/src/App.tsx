@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { ProductCard } from './components/ProductCard';
 import { CartDrawer } from './components/CartDrawer';
@@ -9,7 +9,28 @@ import { AiChatWidget } from './components/AiChatWidget';
 import { AuthModal } from './components/AuthModal';
 import { Product, Category, CartItem, User, Order } from './types';
 import { ApiService } from './services/api';
-import { Search, Sparkles, Filter, RefreshCw, Cpu, ShieldCheck, Zap } from 'lucide-react';
+import { 
+  Search, 
+  Sparkles, 
+  Filter, 
+  RefreshCw, 
+  Cpu, 
+  ShieldCheck, 
+  Zap, 
+  Database, 
+  Layers, 
+  Bot, 
+  CheckCircle2, 
+  ArrowRight,
+  Server,
+  Activity,
+  AlertCircle
+} from 'lucide-react';
+
+interface ToastState {
+  type: 'success' | 'info' | 'error';
+  message: string;
+}
 
 export function App() {
   const [currentTab, setCurrentTab] = useState<'store' | 'tracker' | 'warehouse' | 'devops'>('store');
@@ -26,6 +47,19 @@ export function App() {
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+
+  // Toast Notification State
+  const [toast, setToast] = useState<ToastState | null>(null);
+
+  const architectureRef = useRef<HTMLDivElement>(null);
+  const productsRef = useRef<HTMLDivElement>(null);
+
+  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  };
 
   // Load Initial Data
   useEffect(() => {
@@ -81,8 +115,14 @@ export function App() {
     loadProducts(selectedCategory, searchKeyword);
   };
 
-  // Cart operations
+  // Cart operations with Mandatory Auth Check
   const handleAddToCart = (product: Product) => {
+    if (!currentUser) {
+      showToast('Vui lòng đăng nhập tài khoản để chọn mua sản phẩm.', 'info');
+      handleOpenAuth('login');
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
       if (existing) {
@@ -92,6 +132,8 @@ export function App() {
       }
       return [...prev, { product, quantity: 1 }];
     });
+
+    showToast(`Đã thêm "${product.name}" vào giỏ hàng thành công!`, 'success');
   };
 
   const handleUpdateQuantity = (productId: string, quantity: number) => {
@@ -111,6 +153,7 @@ export function App() {
   const handleOrderCreated = (order: Order) => {
     setActiveTrackedOrder(order);
     setCurrentTab('tracker');
+    showToast(`Đã tạo đơn hàng ${order.orderCode} thành công! Đang chuyển đến trang theo dõi.`, 'success');
   };
 
   const handleOpenAuth = (mode: 'login' | 'register') => {
@@ -121,15 +164,44 @@ export function App() {
   const handleLogout = () => {
     ApiService.logout();
     setCurrentUser(null);
-    if (currentTab === 'warehouse' || currentTab === 'devops') {
+    showToast('Đã đăng xuất tài khoản.', 'info');
+    if (currentTab === 'warehouse' || currentTab === 'devops' || currentTab === 'tracker') {
       setCurrentTab('store');
     }
+  };
+
+  const scrollToArchitecture = () => {
+    architectureRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const scrollToProducts = () => {
+    productsRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="min-h-screen bg-[#fafbfc] text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#fafbfc] text-slate-900 flex flex-col font-sans selection:bg-rose-100 selection:text-rose-800">
+      {/* Toast Notification Popup */}
+      {toast && (
+        <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top-3 fade-in duration-200">
+          <div className={`px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-3 text-xs font-semibold backdrop-blur-md ${
+            toast.type === 'success' 
+              ? 'bg-white/95 border-emerald-200 text-emerald-900 shadow-emerald-500/10'
+              : toast.type === 'info'
+              ? 'bg-white/95 border-amber-200 text-amber-900 shadow-amber-500/10'
+              : 'bg-white/95 border-rose-200 text-rose-900 shadow-rose-500/10'
+          }`}>
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            )}
+            <span>{toast.message}</span>
+          </div>
+        </div>
+      )}
+
       {/* Top Navigation */}
       <Header
         currentTab={currentTab}
@@ -139,91 +211,210 @@ export function App() {
         currentUser={currentUser}
         onOpenAuthModal={handleOpenAuth}
         onLogout={handleLogout}
+        onScrollToArchitecture={scrollToArchitecture}
       />
 
-      {/* Main Tab Views */}
+      {/* Main Views */}
       <main className="flex-1">
         {currentTab === 'store' && (
           <div>
-            {/* Tech Hero Banner - Clean White Canvas with Subtle Crimson Aura */}
-            <div className="relative overflow-hidden bg-gradient-to-b from-rose-50/60 via-white to-[#fafbfc] border-b border-slate-200/60 py-12 px-4 sm:px-6 lg:px-8">
-              <div className="max-w-5xl mx-auto text-center space-y-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold tracking-wide uppercase">
-                  <Sparkles className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Sàn Thương Mại Điện Tử Thiết Bị Công Nghệ</span>
+            {/* Engineering Hero Showcase */}
+            <div className="relative overflow-hidden bg-gradient-to-b from-rose-50/40 via-white to-[#fafbfc] border-b border-slate-200/70 pt-16 pb-20 px-4 sm:px-6 lg:px-8">
+              <div className="max-w-5xl mx-auto text-center space-y-6">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium tracking-wide">
+                  <span className="w-2 h-2 rounded-full bg-rose-600" />
+                  <span>Kiến Trúc Micro-Services Thu Nhỏ & Đồng Bộ Thời Gian Thực</span>
                 </div>
 
-                <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                  Mua sắm công nghệ chính hãng cùng <span className="text-rose-600">ShopFast</span>
+                <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-[1.15]">
+                  Nền Tảng Thương Mại Điện Tử Phân Tán <br />
+                  <span className="bg-gradient-to-r from-rose-600 to-red-700 bg-clip-text text-transparent">
+                    Hiệu Năng Cao & Bền Vững
+                  </span>
                 </h1>
 
-                <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                  Trợ lý AI CSKH DeepSeek thông minh, theo dõi đơn hàng thời gian thực qua WebSocket, bộ nhớ đệm Redis siêu tốc và giao dịch an toàn tuyệt đối.
+                <p className="text-sm sm:text-base text-slate-600 max-w-3xl mx-auto leading-relaxed">
+                  Thiết kế chuẩn hóa công nghiệp với <strong>NestJS</strong>, vi xử lý nền <strong>BullMQ</strong>, bộ đệm phân tán <strong>Redis 7</strong>, kiểm soát giao dịch <strong>PostgreSQL ACID</strong> triệt tiêu overselling và Trợ lý AI DeepSeek tích hợp <strong>Function Calling</strong> thực tế.
                 </p>
 
-                {/* Key Pillars Badges */}
-                <div className="pt-2 flex flex-wrap items-center justify-center gap-2 sm:gap-4 text-xs font-semibold text-slate-700">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <Zap className="w-3.5 h-3.5 text-rose-600" />
-                    <span>Redis Cache &lt;20ms</span>
+                {/* Primary CTA Buttons */}
+                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    onClick={scrollToProducts}
+                    className="px-6 py-3 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-700 hover:to-red-800 text-white rounded-2xl text-xs font-bold shadow-md shadow-rose-600/20 flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    <span>Khám Phá Thiết Bị</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+
+                  <button
+                    onClick={scrollToArchitecture}
+                    className="px-6 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-2xl text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                  >
+                    <Layers className="w-4 h-4 text-slate-500" />
+                    <span>Tổng Quan Kiến Trúc Kỹ Thuật</span>
+                  </button>
+                </div>
+
+                {/* Technical Metric Highlights */}
+                <div className="pt-6 grid grid-cols-2 md:grid-cols-4 gap-3 text-left">
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                    <div className="flex items-center gap-2 text-rose-600 mb-1">
+                      <Zap className="w-4 h-4" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Độ trễ Cache</span>
+                    </div>
+                    <div className="text-lg font-black text-slate-900">&lt; 20 ms</div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Phản hồi danh mục qua Redis 7</p>
                   </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Transaction Lock</span>
+
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                    <div className="flex items-center gap-2 text-emerald-600 mb-1">
+                      <ShieldCheck className="w-4 h-4" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Kiểm soát kho</span>
+                    </div>
+                    <div className="text-lg font-black text-slate-900">Zero Oversell</div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Atomic Transaction Lock</p>
                   </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-                    <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>DeepSeek AI Agent</span>
+
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                    <div className="flex items-center gap-2 text-sky-600 mb-1">
+                      <Server className="w-4 h-4" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Xử lý ngầm</span>
+                    </div>
+                    <div className="text-lg font-black text-slate-900">BullMQ + DLQ</div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">Email, hóa đơn & retry lũy thừa</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                    <div className="flex items-center gap-2 text-indigo-600 mb-1">
+                      <Bot className="w-4 h-4" />
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Trí tuệ nhân tạo</span>
+                    </div>
+                    <div className="text-lg font-black text-slate-900">Tool Calling</div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">DeepSeek không ảo giác</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Filter and Products Section */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              {/* Category Pills & Search Bar */}
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                {/* Categories */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 no-scrollbar">
-                  <button
-                    onClick={() => handleCategorySelect(undefined)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
-                      selectedCategory === undefined
-                        ? 'bg-rose-600 text-white shadow-xs shadow-rose-600/20'
-                        : 'bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50'
-                    }`}
-                  >
-                    Tất cả danh mục
-                  </button>
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => handleCategorySelect(cat.id)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all ${
-                        selectedCategory === cat.id
-                          ? 'bg-rose-600 text-white shadow-xs shadow-rose-600/20'
-                          : 'bg-white text-slate-700 border border-slate-200/80 hover:bg-slate-50'
-                      }`}
-                    >
-                      {cat.name}
-                    </button>
-                  ))}
+            {/* System Engineering & DevOps Architecture Showcase */}
+            <div ref={architectureRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-b border-slate-200/60">
+              <div className="text-center max-w-3xl mx-auto mb-12">
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-rose-600">
+                  SYSTEM DESIGN & ARCHITECTURE
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1 mb-3">
+                  4 Trụ Cột Kỹ Thuật Đạt Chuẩn Enterprise
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                  Thiết kế theo yêu cầu đặc tả đề tài Module 6: Tối ưu khả năng chịu tải, cách ly phòng sự kiện thời gian thực và tự phục hồi khi có gián đoạn.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Pillar 1 */}
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:border-rose-200 transition-all">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mb-4">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mb-1">
+                    Kiểm Soát Giao Dịch Đồng Thời (F06 Concurrency Control)
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Sử dụng cơ chế <strong>Atomic Database Transaction</strong> với Prisma trên PostgreSQL 16. Mọi lượt trừ tồn kho trong quá trình thanh toán đều được thực hiện tuần tự hóa, ngăn ngừa triệt để hiện tượng Race Condition khi có nhiều người cùng mua món hàng cuối cùng.
+                  </p>
                 </div>
 
-                {/* Search Box */}
-                <form onSubmit={handleSearchSubmit} className="relative w-full md:w-72">
+                {/* Pillar 2 */}
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:border-rose-200 transition-all">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mb-4">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mb-1">
+                    Bộ Đệm Đa Tầng & Invalidation Thông Minh (F04 Redis Caching)
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Tầng cache phân tán Redis 7 phản hồi danh mục sản phẩm dưới <strong>20ms</strong>. Áp dụng kỹ thuật <strong>Cache Penetration Protection</strong> (cache kết quả rỗng tạm thời) và tự động xóa cache (Invalidation) ngay khi người quản trị cập nhật giá bán hoặc số lượng hàng tồn.
+                  </p>
+                </div>
+
+                {/* Pillar 3 */}
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:border-rose-200 transition-all">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mb-4">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mb-1">
+                    Hàng Đợi Xử Lý Nền Bất Đồng Bộ (F05 BullMQ & DLQ)
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Tách rời các luồng xử lý nặng như gửi email xác nhận, xuất hóa đơn điện tử và nhắc nhở thanh toán (30 phút) sang worker BullMQ. Tích hợp thuật toán <strong>Exponential Backoff</strong> (tự động thử lại theo cấp số nhân) và chuyển vào <strong>Dead Letter Queue (DLQ)</strong> nếu có lỗi kéo dài.
+                  </p>
+                </div>
+
+                {/* Pillar 4 */}
+                <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xs hover:border-rose-200 transition-all">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-4">
+                    <Bot className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-base font-bold text-slate-900 mb-1">
+                    Trợ Lý AI Không Ảo Giác (F01 Zero-Hallucination Agent)
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Tích hợp mô hình ngôn ngữ lớn DeepSeek thông qua giao thức <strong>Native JSON Tool Calling</strong>. AI buộc phải gọi các hàm nghiệp vụ để tra cứu chính xác trạng thái đơn hàng và tồn kho trước khi phát biểu, đồng thời thực thi nguyên tắc <strong>Human-in-the-loop</strong> khi khách yêu cầu hủy/hoàn đơn.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Products & Storefront Section */}
+            <div ref={productsRef} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">Sản Phẩm Công Nghệ Thực Tế</h2>
+                  <p className="text-xs text-slate-500 mt-1">Dữ liệu được nạp trực tiếp từ PostgreSQL và đồng bộ qua bộ nhớ đệm Redis.</p>
+                </div>
+
+                {/* Search Bar */}
+                <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-72">
                   <input
                     type="text"
                     value={searchKeyword}
                     onChange={(e) => setSearchKeyword(e.target.value)}
-                    placeholder="Tìm iPhone, MacBook, Sony..."
-                    className="w-full pl-9 pr-3.5 py-2 bg-white text-xs text-slate-900 border border-slate-200/80 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-medium"
+                    placeholder="Tìm theo tên thiết bị hoặc SKU..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-white text-xs text-slate-900 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 font-medium shadow-2xs"
                   />
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                 </form>
               </div>
 
-              {/* Product Grid */}
+              {/* Category Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-4 mb-6 no-scrollbar">
+                <button
+                  onClick={() => handleCategorySelect(undefined)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                    selectedCategory === undefined
+                      ? 'bg-rose-600 text-white shadow-xs shadow-rose-600/20'
+                      : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Tất cả danh mục
+                </button>
+                {categories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => handleCategorySelect(cat.id)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-all cursor-pointer ${
+                      selectedCategory === cat.id
+                        ? 'bg-rose-600 text-white shadow-xs shadow-rose-600/20'
+                        : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Products Grid */}
               {isLoadingProducts ? (
                 <div className="py-24 text-center">
                   <RefreshCw className="w-8 h-8 text-rose-600 animate-spin mx-auto mb-3" />
@@ -273,7 +464,7 @@ export function App() {
         )}
       </main>
 
-      {/* Floating AI Support Agent Widget */}
+      {/* Floating Circular AI Support Agent FAB */}
       <AiChatWidget />
 
       {/* Cart Slide-over Drawer */}
@@ -294,6 +485,7 @@ export function App() {
         onClose={() => setIsAuthModalOpen(false)}
         onAuthSuccess={(user) => {
           setCurrentUser(user);
+          showToast(`Chào mừng ${user.fullName} đã đăng nhập thành công!`, 'success');
         }}
       />
 
@@ -303,7 +495,7 @@ export function App() {
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900">ShopFast Tech</span>
             <span>—</span>
-            <span>Hệ Thống Thương Mại Điện Tử Công Nghệ</span>
+            <span>Rikkei Academy Defense Case Study</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-slate-400 font-mono text-[11px]">

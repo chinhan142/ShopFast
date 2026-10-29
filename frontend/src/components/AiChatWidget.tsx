@@ -59,19 +59,16 @@ export const AiChatWidget: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-5 right-5 z-50">
-      {/* Floating Toggle Button */}
+    <div className="fixed bottom-6 right-6 z-50">
+      {/* Floating Circular FAB (Compact, elegant, not covering footer) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="group relative flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-rose-600 to-red-800 hover:from-rose-700 hover:to-red-900 text-white rounded-2xl shadow-xl shadow-rose-600/25 hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 border border-rose-500/30"
+          title="Trợ lý AI DeepSeek CSKH (Hỗ trợ tra cứu & kiểm tra kho)"
+          className="group relative w-14 h-14 rounded-full bg-gradient-to-tr from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white shadow-xl shadow-rose-600/30 hover:scale-105 active:scale-95 flex items-center justify-center transition-all duration-200 border-2 border-white cursor-pointer"
         >
-          <div className="relative">
-            <Bot className="w-5 h-5 animate-pulse" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white" />
-          </div>
-          <span className="text-xs font-bold tracking-wide">Trợ Lý AI CSKH</span>
-          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+          <Bot className="w-6 h-6 transition-transform group-hover:scale-110" />
+          <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-white animate-pulse" />
         </button>
       )}
 
@@ -86,62 +83,66 @@ export const AiChatWidget: React.FC = () => {
               </div>
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-bold text-xs tracking-wide">ShopFast AI Agent</h3>
-                  <span className="px-1.5 py-0.2 text-[9px] font-bold bg-white/20 rounded-md">DeepSeek</span>
+                  <h3 className="font-bold text-sm tracking-tight">Trợ Lý AI CSKH</h3>
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded-md bg-white/20 text-white border border-white/30">
+                    DeepSeek
+                  </span>
                 </div>
-                <p className="text-[10px] text-rose-100 flex items-center gap-1">
+                <div className="flex items-center gap-1.5 mt-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Tool Calling & Anti-Hallucination Active
-                </p>
+                  <p className="text-[10px] text-rose-100">Tool Calling & Anti-Hallucination</p>
+                </div>
               </div>
             </div>
 
             <button
               onClick={() => setIsOpen(false)}
-              className="p-1.5 text-rose-200 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+              className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-rose-100 hover:text-white"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Messages Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/50 text-xs">
-            {messages.map((m, idx) => {
-              const isAi = m.role === 'assistant';
-
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/60 text-xs">
+            {messages.map((msg, idx) => {
+              const isUser = msg.role === 'user';
               return (
-                <div key={idx} className={`flex gap-2.5 ${isAi ? 'items-start' : 'items-end justify-end'}`}>
-                  {isAi && (
-                    <div className="w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0 text-[10px] font-bold">
-                      AI
-                    </div>
-                  )}
-
-                  <div className={`max-w-[82%] ${isAi ? '' : 'text-right'}`}>
-                    {/* Tool Calling Indicator Pill */}
-                    {m.usedTools && m.usedTools.length > 0 && (
-                      <div className="mb-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold">
-                        <Wrench className="w-3 h-3 text-indigo-600" />
-                        <span>Đã gọi công cụ thật: {m.usedTools.join(', ')}</span>
-                      </div>
-                    )}
-
-                    <div
-                      className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                        isAi
-                          ? 'bg-white text-slate-800 border border-slate-200/90 shadow-2xs rounded-tl-xs'
-                          : 'bg-rose-600 text-white font-medium rounded-br-xs shadow-xs'
-                      }`}
-                    >
-                      <p className="whitespace-pre-wrap">{m.content}</p>
-                    </div>
+                <div key={idx} className={`flex gap-2.5 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div
+                    className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 text-white ${
+                      isUser ? 'bg-slate-800' : 'bg-rose-600'
+                    }`}
+                  >
+                    {isUser ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                   </div>
 
-                  {!isAi && (
-                    <div className="w-6 h-6 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 text-[10px]">
-                      <User className="w-3.5 h-3.5" />
+                  <div className={`space-y-1.5 max-w-[78%]`}>
+                    <div
+                      className={`p-3 rounded-2xl leading-relaxed whitespace-pre-wrap ${
+                        isUser
+                          ? 'bg-rose-600 text-white rounded-tr-xs shadow-xs'
+                          : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs shadow-2xs'
+                      }`}
+                    >
+                      {msg.content}
                     </div>
-                  )}
+
+                    {/* Tool Invocation Badge */}
+                    {msg.usedTools && msg.usedTools.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {msg.usedTools.map((tool, tIdx) => (
+                          <span
+                            key={tIdx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-mono font-medium"
+                          >
+                            <Wrench className="w-2.5 h-2.5 text-amber-600" />
+                            Đã gọi Tool: {tool}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
