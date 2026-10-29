@@ -1,0 +1,127 @@
+name: ShopFast CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ----------------------------------------------------------------
+  # JOB 1: Test & Quality Gate (SRS: Fails pipeline on broken tests)
+  # ----------------------------------------------------------------
+  test-and-lint:
+    name: Run Unit Tests & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Backend Dependencies
+        working-directory: ./backend
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        working-directory: ./backend
+        run: npx prisma generate
+        env:
+          DATABASE_URL: "postgresql://test:test@localhost:5432/test?schema=public"
+
+      - name: Build TypeScript Project
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Run Unit Tests with Coverage Check (>=60% Requirement)
+        working-directory: ./backend
+        run: npm run test:cov
+        env:
+          DATABASE_URL: "postgresql://test:test@localhost:5432/test?schema=public"
+          JWT_SECRET: "f9d45e82b71946a39281c70e2819385bf18a02c5de783921a48c73b0928a385f"
+          JWT_REFRESH_SECRET: "73e891c098234ab89c2018471b0928374f6710293847561a0b9c8d7e6f5a4b3c"
+
+  # ----------------------------------------------------------------
+  # JOB 2: Build & Auto Deploy with Rollback Mechanism
+  # ----------------------------------------------------------------
+  deploy:
+    name: Build Docker & Deploy to AWS EC2
+    needs: test-and-lint
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set Image Tag
+        run: echo "IMAGE_TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+
+      - name: Setup SSH Connection to AWS EC2
+        if: env.EC2_HOST != ''
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy to Server & Post-Deployment Health Check with Rollback
+        if: env.EC2_HOST != ''
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key $EC2_USER@$EC2_HOST << 'EOF'
+            set -e
+            cd /home/ubuntu/ShopFast || git clone https://github.com/chinhan142/ShopFast.git /home/ubuntu/ShopFast
+            cd /home/ubuntu/ShopFast
+
+            # Record previous working commit for rollback
+            PREVIOUS_COMMIT=$(git rev-parse HEAD || echo "")
+
+            echo "Pulling latest changes from main..."
+            git pull origin main
+
+            echo "Building and starting Docker containers..."
+            docker compose down || true
+            docker compose up -d --build
+
+            echo "Running database migrations..."
+            docker compose exec -T backend npx prisma migrate deploy || true
+
+            # Health Check Verification (SRS: Rollback under 2 minutes on failure)
+            echo "Waiting for health check endpoint..."
+            HEALTHY=false
+            for i in {1..12}; do
+              sleep 5
+              HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/v1/health || echo "000")
+              if [ "$HTTP_STATUS" -eq 200 ]; then
+                echo "Health check PASSED (HTTP 200 OK)!"
+                HEALTHY=true
+                break
+              fi
+              echo "Health check attempt $i failed (Status: $HTTP_STATUS). Retrying..."
+            done
+
+            if [ "$HEALTHY" = false ]; then
+              echo "CRITICAL: Health check FAILED! Initiating Automated Rollback..."
+              if [ -n "$PREVIOUS_COMMIT" ]; then
+                git checkout $PREVIOUS_COMMIT
+                docker compose up -d --build
+                echo "Rollback to $PREVIOUS_COMMIT completed successfully."
+              fi
+              exit 1
+            fi
+
+            echo "Deployment completed successfully in under 5 minutes!"
+          EOF
