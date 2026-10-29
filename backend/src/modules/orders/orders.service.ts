@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
+import { OrdersGateway } from '../realtime/orders.gateway';
+import { OrderQueueProducer } from '../queue/order-queue.producer';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { GetOrdersQueryDto } from './dto/get-orders-query.dto';
 import { OrderStatus, Role } from '@prisma/client';
@@ -18,10 +20,22 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly ordersGateway: OrdersGateway,
+    private readonly orderQueueProducer: OrderQueueProducer,
   ) {}
 
   async createOrder(userId: string, dto: CreateOrderDto) {
-    // Execute atomic transaction for inventory checking & order creation (Concurrency Control)
+    // 1. Fetch user to retrieve customer email for notifications
+    const customer = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, fullName: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Không tìm thấy thông tin khách hàng đặt hàng.');
+    }
+
+    // 2. Execute atomic transaction for inventory checking & order creation (Concurrency Control)
     const order = await this.prisma.$transaction(async (tx) => {
       let totalAmount = 0;
       const orderItemsData: Array<{
@@ -108,8 +122,28 @@ export class OrdersService {
       return createdOrder;
     });
 
-    // F04 Cache Invalidation: Invalidate product caches when stock is decremented
+    // 3. F04 Invalidate product cache immediately
     await this.redis.delByPattern('products:*');
+
+    // 4. F05 Push Background Jobs to BullMQ (Async Email, Invoice, Payment Reminder)
+    await Promise.all([
+      this.orderQueueProducer.addOrderConfirmationJob({
+        id: order.id,
+        orderCode: order.orderCode,
+        totalAmount: order.totalAmount,
+        email: customer.email,
+      }),
+      this.orderQueueProducer.addInvoiceGenerationJob({
+        id: order.id,
+        orderCode: order.orderCode,
+        totalAmount: order.totalAmount,
+      }),
+      this.orderQueueProducer.addPaymentReminderJob({
+        id: order.id,
+        orderCode: order.orderCode,
+        email: customer.email,
+      }),
+    ]);
 
     return order;
   }
@@ -261,9 +295,11 @@ export class OrdersService {
       throw new NotFoundException(`Không tìm thấy đơn hàng có ID: ${orderId}`);
     }
 
+    let updatedOrder: any;
+
     // If order is cancelled and was not already cancelled, restore inventory
     if (newStatus === OrderStatus.CANCELLED && order.status !== OrderStatus.CANCELLED) {
-      const updated = await this.prisma.$transaction(async (tx) => {
+      updatedOrder = await this.prisma.$transaction(async (tx) => {
         for (const item of order.items) {
           await tx.product.update({
             where: { id: item.productId },
@@ -271,7 +307,7 @@ export class OrdersService {
           });
         }
 
-        const updatedOrder = await tx.order.update({
+        const res = await tx.order.update({
           where: { id: orderId },
           data: { status: newStatus },
           include: {
@@ -284,27 +320,36 @@ export class OrdersService {
         });
 
         this.logger.log(`Order ${order.orderCode} cancelled. Stock restored.`);
-        return updatedOrder;
+        return res;
       });
 
       // Invalidate product caches when stock restored
       await this.redis.delByPattern('products:*');
-      return updated;
-    }
-
-    const updatedOrder = await this.prisma.order.update({
-      where: { id: orderId },
-      data: { status: newStatus },
-      include: {
-        items: {
-          include: {
-            product: true,
+    } else {
+      updatedOrder = await this.prisma.order.update({
+        where: { id: orderId },
+        data: { status: newStatus },
+        include: {
+          items: {
+            include: {
+              product: true,
+            },
           },
         },
-      },
-    });
+      });
+    }
 
     this.logger.log(`Order ${order.orderCode} status updated: ${order.status} -> ${newStatus}`);
+
+    // F02 Realtime: Broadcast status update event to the specific order room
+    this.ordersGateway.broadcastOrderStatusUpdate({
+      orderId: updatedOrder.id,
+      orderCode: updatedOrder.orderCode,
+      status: updatedOrder.status,
+      updatedAt: updatedOrder.updatedAt ? updatedOrder.updatedAt.toISOString() : new Date().toISOString(),
+      message: `Đơn hàng ${updatedOrder.orderCode} đã chuyển sang trạng thái: ${updatedOrder.status}`,
+    });
+
     return updatedOrder;
   }
 }

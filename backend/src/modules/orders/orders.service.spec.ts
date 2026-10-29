@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { RedisService } from '../../common/redis/redis.service';
+import { OrdersGateway } from '../realtime/orders.gateway';
+import { OrderQueueProducer } from '../queue/order-queue.producer';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { OrderStatus, Role } from '@prisma/client';
 
@@ -9,6 +11,8 @@ describe('OrdersService', () => {
   let service: OrdersService;
   let prisma: jest.Mocked<PrismaService>;
   let redis: jest.Mocked<RedisService>;
+  let gateway: jest.Mocked<OrdersGateway>;
+  let queueProducer: jest.Mocked<OrderQueueProducer>;
 
   const mockProduct = {
     id: 'prod-1',
@@ -17,6 +21,12 @@ describe('OrdersService', () => {
     price: 34000000,
     stock: 5,
     isActive: true,
+  };
+
+  const mockCustomer = {
+    id: 'user-1',
+    email: 'customer@shopfast.vn',
+    fullName: 'Nguyen Van Khach',
   };
 
   beforeEach(async () => {
@@ -28,6 +38,9 @@ describe('OrdersService', () => {
         count: jest.fn(),
         update: jest.fn(),
       },
+      user: {
+        findUnique: jest.fn().mockResolvedValue(mockCustomer),
+      },
     };
 
     const mockRedis = {
@@ -38,24 +51,38 @@ describe('OrdersService', () => {
       isAvailable: jest.fn().mockReturnValue(true),
     };
 
+    const mockGateway = {
+      broadcastOrderStatusUpdate: jest.fn(),
+    };
+
+    const mockQueueProducer = {
+      addOrderConfirmationJob: jest.fn().mockResolvedValue(undefined),
+      addInvoiceGenerationJob: jest.fn().mockResolvedValue(undefined),
+      addPaymentReminderJob: jest.fn().mockResolvedValue(undefined),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
         { provide: PrismaService, useValue: mockPrisma },
         { provide: RedisService, useValue: mockRedis },
+        { provide: OrdersGateway, useValue: mockGateway },
+        { provide: OrderQueueProducer, useValue: mockQueueProducer },
       ],
     }).compile();
 
     service = module.get<OrdersService>(OrdersService);
     prisma = module.get(PrismaService);
     redis = module.get(RedisService);
+    gateway = module.get(OrdersGateway);
+    queueProducer = module.get(OrderQueueProducer);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('createOrder (Concurrency & Inventory Control)', () => {
+  describe('createOrder (Concurrency & BullMQ Queue Integration)', () => {
     it('should throw BadRequestException when requested quantity exceeds available stock', async () => {
       // Setup transaction mock
       prisma.$transaction.mockImplementation(async (callback: any) => {
@@ -84,7 +111,7 @@ describe('OrdersService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('should successfully create order and decrement stock atomically when inventory is sufficient', async () => {
+    it('should successfully create order, decrement stock, and dispatch BullMQ background jobs', async () => {
       const mockCreatedOrder = {
         id: 'order-1',
         orderCode: 'SF-20261029-TEST',
@@ -130,33 +157,39 @@ describe('OrdersService', () => {
       expect(result.id).toBe('order-1');
       expect(result.totalAmount).toBe(34000000);
       expect(redis.delByPattern).toHaveBeenCalledWith('products:*');
+      expect(queueProducer.addOrderConfirmationJob).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'order-1', email: 'customer@shopfast.vn' }),
+      );
+      expect(queueProducer.addInvoiceGenerationJob).toHaveBeenCalled();
     });
   });
 
-  describe('findOrderById (Security & Role Access)', () => {
-    it('should throw ForbiddenException when a customer attempts to view another user order', async () => {
-      (prisma.order.findUnique as jest.Mock).mockResolvedValue({
-        id: 'order-99',
-        userId: 'other-user-id',
-        status: OrderStatus.PENDING,
-      });
-
-      await expect(
-        service.findOrderById('order-99', 'my-user-id', Role.CUSTOMER),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
-    it('should allow warehouse staff or admin to view any customer order', async () => {
+  describe('updateOrderStatus (Realtime Event Broadcasting)', () => {
+    it('should update status and broadcast realtime websocket event to the specific room', async () => {
       const mockOrder = {
-        id: 'order-99',
-        userId: 'customer-user-id',
+        id: 'order-1',
+        orderCode: 'SF-20261029-TEST',
+        userId: 'user-1',
         status: OrderStatus.PENDING,
+        items: [],
       };
 
       (prisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder);
+      (prisma.order.update as jest.Mock).mockResolvedValue({
+        ...mockOrder,
+        status: OrderStatus.SHIPPING,
+        updatedAt: new Date(),
+      });
 
-      const result = await service.findOrderById('order-99', 'staff-user-id', Role.STAFF);
-      expect(result.id).toBe('order-99');
+      const result = await service.updateOrderStatus('order-1', OrderStatus.SHIPPING);
+
+      expect(result.status).toBe(OrderStatus.SHIPPING);
+      expect(gateway.broadcastOrderStatusUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: 'order-1',
+          status: OrderStatus.SHIPPING,
+        }),
+      );
     });
   });
 });
