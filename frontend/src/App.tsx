@@ -6,6 +6,7 @@ import { RealtimeOrderTracker } from './components/RealtimeOrderTracker';
 import { WarehousePortal } from './components/WarehousePortal';
 import { DevOpsDashboard } from './components/DevOpsDashboard';
 import { AiChatWidget } from './components/AiChatWidget';
+import { AuthModal } from './components/AuthModal';
 import { Product, Category, CartItem, User, Order } from './types';
 import { ApiService } from './services/api';
 import { Search, Sparkles, Filter, RefreshCw, Cpu, ShieldCheck, Zap } from 'lucide-react';
@@ -22,6 +23,10 @@ export function App() {
   const [activeTrackedOrder, setActiveTrackedOrder] = useState<Order | null>(null);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
+  // Auth Modal State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+
   // Load Initial Data
   useEffect(() => {
     loadCategories();
@@ -36,6 +41,7 @@ export function App() {
         setCurrentUser(user);
       } catch {
         ApiService.setToken(null);
+        setCurrentUser(null);
       }
     }
   };
@@ -107,6 +113,19 @@ export function App() {
     setCurrentTab('tracker');
   };
 
+  const handleOpenAuth = (mode: 'login' | 'register') => {
+    setAuthModalMode(mode);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleLogout = () => {
+    ApiService.logout();
+    setCurrentUser(null);
+    if (currentTab === 'warehouse' || currentTab === 'devops') {
+      setCurrentTab('store');
+    }
+  };
+
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
@@ -118,11 +137,8 @@ export function App() {
         cartCount={totalCartCount}
         openCart={() => setIsCartOpen(true)}
         currentUser={currentUser}
-        onLoginSuccess={(u) => setCurrentUser(u)}
-        onLogout={() => {
-          ApiService.logout();
-          setCurrentUser(null);
-        }}
+        onOpenAuthModal={handleOpenAuth}
+        onLogout={handleLogout}
       />
 
       {/* Main Tab Views */}
@@ -134,15 +150,15 @@ export function App() {
               <div className="max-w-5xl mx-auto text-center space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold tracking-wide uppercase">
                   <Sparkles className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Nền tảng thương mại điện tử công nghệ thế hệ mới</span>
+                  <span>Sàn Thương Mại Điện Tử Thiết Bị Công Nghệ</span>
                 </div>
 
                 <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                  Trải nghiệm công nghệ đỉnh cao cùng <span className="text-rose-600">ShopFast</span>
+                  Mua sắm công nghệ chính hãng cùng <span className="text-rose-600">ShopFast</span>
                 </h1>
 
                 <p className="text-sm sm:text-base text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                  Tích hợp AI CSKH thông minh, theo dõi đơn hàng thời gian thực qua WebSocket, bộ nhớ đệm Redis siêu tốc và giao dịch an toàn chống oversell.
+                  Trợ lý AI CSKH DeepSeek thông minh, theo dõi đơn hàng thời gian thực qua WebSocket, bộ nhớ đệm Redis siêu tốc và giao dịch an toàn tuyệt đối.
                 </p>
 
                 {/* Key Pillars Badges */}
@@ -211,7 +227,7 @@ export function App() {
               {isLoadingProducts ? (
                 <div className="py-24 text-center">
                   <RefreshCw className="w-8 h-8 text-rose-600 animate-spin mx-auto mb-3" />
-                  <p className="text-xs font-bold text-slate-600">Đang tải danh mục thiết bị công nghệ...</p>
+                  <p className="text-xs font-bold text-slate-600">Đang nạp dữ liệu sản phẩm từ máy chủ...</p>
                 </div>
               ) : products.length === 0 ? (
                 <div className="py-24 text-center bg-white rounded-3xl border border-slate-200/80 p-8">
@@ -234,9 +250,27 @@ export function App() {
           </div>
         )}
 
-        {currentTab === 'tracker' && <RealtimeOrderTracker initialOrder={activeTrackedOrder} />}
-        {currentTab === 'warehouse' && <WarehousePortal />}
-        {currentTab === 'devops' && <DevOpsDashboard />}
+        {currentTab === 'tracker' && (
+          <RealtimeOrderTracker
+            initialOrder={activeTrackedOrder}
+            currentUser={currentUser}
+            onOpenAuthModal={() => handleOpenAuth('login')}
+          />
+        )}
+
+        {currentTab === 'warehouse' && (
+          <WarehousePortal
+            currentUser={currentUser}
+            onOpenAuthModal={() => handleOpenAuth('login')}
+          />
+        )}
+
+        {currentTab === 'devops' && (
+          <DevOpsDashboard
+            currentUser={currentUser}
+            onOpenAuthModal={() => handleOpenAuth('login')}
+          />
+        )}
       </main>
 
       {/* Floating AI Support Agent Widget */}
@@ -253,13 +287,23 @@ export function App() {
         onOrderCreated={handleOrderCreated}
       />
 
+      {/* Real Auth Modal for Login & Register */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        initialMode={authModalMode}
+        onClose={() => setIsAuthModalOpen(false)}
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+        }}
+      />
+
       {/* Clean White Tech Footer */}
       <footer className="bg-white border-t border-slate-200/80 py-8 px-4 text-center text-xs text-slate-500 mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-900">ShopFast Tech</span>
             <span>—</span>
-            <span>Defense Case Study 6 (Rikkei Academy)</span>
+            <span>Hệ Thống Thương Mại Điện Tử Công Nghệ</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 text-slate-400 font-mono text-[11px]">
@@ -280,4 +324,5 @@ export function App() {
     </div>
   );
 }
+
 export default App;

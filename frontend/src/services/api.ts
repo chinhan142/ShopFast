@@ -58,6 +58,15 @@ export class ApiService {
     return res;
   }
 
+  static async register(data: { email: string; password: string; fullName: string; phone?: string }) {
+    const res = await this.request<{ user: any; tokens: { accessToken: string; refreshToken: string } }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    this.setToken(res.tokens.accessToken);
+    return res;
+  }
+
   static async getProfile() {
     return this.request<any>('/auth/profile');
   }
