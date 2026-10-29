@@ -5,6 +5,8 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { validateEnvironment } from './common/config/env.validation';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
+import { QueueModule } from './modules/queue/queue.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProductsModule } from './modules/products/products.module';
@@ -20,7 +22,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       isGlobal: true,
       validate: validateEnvironment,
     }),
-    // F03 Throttler Configuration: General (100 req/min) & Strict (5 req/min)
+    // F03 Throttler: General (100 req/min) & Strict (5 req/min)
     ThrottlerModule.forRoot([
       {
         name: 'default',
@@ -35,6 +37,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     ]),
     PrismaModule,
     RedisModule,
+    RealtimeModule,
+    QueueModule,
     UsersModule,
     AuthModule,
     ProductsModule,
