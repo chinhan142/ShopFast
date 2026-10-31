@@ -1,4 +1,4 @@
-import {
+﻿import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
@@ -144,6 +144,7 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   broadcastOrderStatusUpdate(payload: OrderStatusEventPayload) {
     const roomName = `order_${payload.orderId}`;
     this.server.to(roomName).emit('order_status_updated', payload);
+    this.server.emit('order_status_updated', payload);
     this.logger.log(`📡 [Realtime Event] Emitted "order_status_updated" to room "${roomName}": Status = ${payload.status}`);
   }
 }

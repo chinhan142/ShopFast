@@ -4,13 +4,24 @@ const API_BASE = '/api/v1';
 
 export class ApiService {
   private static token: string | null = localStorage.getItem('shopfast_token');
+  private static refreshToken: string | null = localStorage.getItem('shopfast_refresh_token');
+  private static isRefreshing = false;
 
-  static setToken(token: string | null) {
+  static setToken(token: string | null, refreshToken?: string | null) {
     this.token = token;
     if (token) {
       localStorage.setItem('shopfast_token', token);
     } else {
       localStorage.removeItem('shopfast_token');
+    }
+
+    if (refreshToken !== undefined) {
+      this.refreshToken = refreshToken;
+      if (refreshToken) {
+        localStorage.setItem('shopfast_refresh_token', refreshToken);
+      } else {
+        localStorage.removeItem('shopfast_refresh_token');
+      }
     }
   }
 
@@ -21,7 +32,14 @@ export class ApiService {
     return this.token;
   }
 
-  private static async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  static getRefreshToken(): string | null {
+    if (!this.refreshToken) {
+      this.refreshToken = localStorage.getItem('shopfast_refresh_token');
+    }
+    return this.refreshToken;
+  }
+
+  private static async request<T>(endpoint: string, options: RequestInit = {}, isRetry = false): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string>),
@@ -36,6 +54,36 @@ export class ApiService {
       ...options,
       headers,
     });
+
+    // Auto Refresh Token Interceptor: When Access Token expires (401), automatically call /auth/refresh
+    if (response.status === 401 && !isRetry && endpoint !== '/auth/login' && endpoint !== '/auth/refresh' && endpoint !== '/auth/register') {
+      const rfToken = this.getRefreshToken();
+      if (rfToken && !this.isRefreshing) {
+        this.isRefreshing = true;
+        try {
+          const refreshRes = await fetch(`${API_BASE}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken: rfToken }),
+          });
+          const rfJson = await refreshRes.json();
+          const rfData = rfJson.data || rfJson;
+
+          if (refreshRes.ok && rfData.accessToken) {
+            this.setToken(rfData.accessToken, rfData.refreshToken || rfToken);
+            this.isRefreshing = false;
+            // Retry the original failed request with the new access token
+            return this.request<T>(endpoint, options, true);
+          }
+        } catch {
+          // Refresh failed
+        } finally {
+          this.isRefreshing = false;
+        }
+      }
+      // If refresh token is missing or expired, clean session
+      this.setToken(null, null);
+    }
 
     const json = await response.json().catch(() => ({}));
 
@@ -54,7 +102,7 @@ export class ApiService {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    this.setToken(res.tokens.accessToken);
+    this.setToken(res.tokens.accessToken, res.tokens.refreshToken);
     return res;
   }
 
@@ -63,7 +111,7 @@ export class ApiService {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    this.setToken(res.tokens.accessToken);
+    this.setToken(res.tokens.accessToken, res.tokens.refreshToken);
     return res;
   }
 
@@ -75,7 +123,7 @@ export class ApiService {
     try {
       await this.request('/auth/logout', { method: 'POST' });
     } finally {
-      this.setToken(null);
+      this.setToken(null, null);
     }
   }
 

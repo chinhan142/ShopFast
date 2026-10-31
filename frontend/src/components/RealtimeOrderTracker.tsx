@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { CheckCircle2, Clock, Truck, Package, XCircle, Wifi, RefreshCw, AlertCircle, Search, UserCheck } from 'lucide-react';
 import { Order, OrderStatus, User } from '../types';
@@ -100,11 +100,14 @@ export const RealtimeOrderTracker: React.FC<RealtimeOrderTrackerProps> = ({
     });
 
     socketInstance.on('order_status_updated', (eventData: { orderId: string; status: OrderStatus; message: string }) => {
-      if (eventData.orderId === currentOrder.id) {
+      if (currentOrder && eventData.orderId === currentOrder.id) {
         setCurrentOrder((prev) => (prev ? { ...prev, status: eventData.status } : null));
         setLiveEventBanner(eventData.message);
         setTimeout(() => setLiveEventBanner(null), 8000);
       }
+      setMyOrders((prev) =>
+        prev.map((o) => (o.id === eventData.orderId ? { ...o, status: eventData.status } : o))
+      );
     });
 
     socketInstance.on('disconnect', () => {

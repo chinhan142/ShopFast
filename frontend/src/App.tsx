@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { ProductCard } from './components/ProductCard';
 import { CartDrawer } from './components/CartDrawer';
@@ -77,6 +77,13 @@ export function App() {
     loadProducts();
     checkExistingAuth();
   }, []);
+
+  // Auto reload products on returning to Store tab
+  useEffect(() => {
+    if (currentTab === 'store') {
+      loadProducts(selectedCategory, searchKeyword);
+    }
+  }, [currentTab]);
 
   const checkExistingAuth = async () => {
     if (ApiService.getToken()) {

@@ -12,6 +12,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
     networks:
       - shopfast-net
     healthcheck:
@@ -52,7 +54,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION: 15m
+      JWT_EXPIRATION: 7d
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       JWT_REFRESH_EXPIRATION: 7d
       REDIS_HOST: redis
