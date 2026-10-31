@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Activity, Database, Server, Cpu, ExternalLink, ShieldAlert, CheckCircle, RefreshCw, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { User } from '../types';
@@ -149,7 +149,7 @@ export const DevOpsDashboard: React.FC<DevOpsDashboardProps> = ({ currentUser, o
           </a>
 
           <a
-            href="http://localhost:3000/admin/queues"
+            href="http://localhost:3000/api/admin/queues"
             target="_blank"
             rel="noopener noreferrer"
             className="p-4 rounded-2xl border border-slate-200/90 hover:border-rose-300 hover:bg-rose-50/40 transition-all flex items-center justify-between group"
