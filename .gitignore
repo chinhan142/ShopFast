@@ -18,6 +18,12 @@ package-lock.json.bak
 .env.test.local
 .env.production.local
 
+# Security Keys & Certificates
+*.pem
+*.key
+*.cer
+*.crt
+
 # Internal documentation and specs (local only)
 docs/
 doc.txt
