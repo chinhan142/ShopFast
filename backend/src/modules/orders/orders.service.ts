@@ -145,6 +145,26 @@ export class OrdersService {
       }),
     ]);
 
+    // F02 Realtime: Broadcast new order event to Warehouse Portal
+    try {
+      const fullOrder = await this.prisma.order.findUnique({
+        where: { id: order.id },
+        include: {
+          user: { select: { id: true, fullName: true, email: true } },
+          items: {
+            include: {
+              product: { select: { id: true, name: true, sku: true, imageUrl: true } },
+            },
+          },
+        },
+      });
+      if (fullOrder) {
+        this.ordersGateway.broadcastNewOrder(fullOrder);
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not broadcast new order: ${err.message}`);
+    }
+
     return order;
   }
 

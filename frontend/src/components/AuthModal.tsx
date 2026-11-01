@@ -308,7 +308,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="grid grid-cols-3 gap-1.5 text-[10px]">
               <button
                 type="button"
-                onClick={() => fillTestCredentials('customer@shopfast.vn', 'Customer@123456')}
+                onClick={() => fillTestCredentials('customer@shopfast.vn', 'Demo@123')}
                 className="p-2 rounded-xl bg-slate-50 hover:bg-rose-50 hover:border-rose-200 border border-slate-200/80 text-left transition-colors"
               >
                 <div className="font-bold text-slate-800 truncate">Khách hàng</div>
@@ -316,7 +316,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => fillTestCredentials('warehouse@shopfast.vn', 'Staff@123456')}
+                onClick={() => fillTestCredentials('warehouse@shopfast.vn', 'Demo@123')}
                 className="p-2 rounded-xl bg-slate-50 hover:bg-rose-50 hover:border-rose-200 border border-slate-200/80 text-left transition-colors"
               >
                 <div className="font-bold text-slate-800 truncate">Nhân viên kho</div>
@@ -324,7 +324,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => fillTestCredentials('admin@shopfast.vn', 'Admin@123456')}
+                onClick={() => fillTestCredentials('admin@shopfast.vn', 'Demo@123')}
                 className="p-2 rounded-xl bg-slate-50 hover:bg-rose-50 hover:border-rose-200 border border-slate-200/80 text-left transition-colors"
               >
                 <div className="font-bold text-slate-800 truncate">Quản trị viên</div>

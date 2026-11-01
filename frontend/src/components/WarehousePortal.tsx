@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 import { PackageCheck, RefreshCw, Truck, CheckCircle2, ShieldAlert, ArrowRight } from 'lucide-react';
 import { Order, OrderStatus, User } from '../types';
 import { ApiService } from '../services/api';
@@ -33,6 +34,35 @@ export const WarehousePortal: React.FC<WarehousePortalProps> = ({ currentUser, o
   useEffect(() => {
     if (isAuthorized) {
       fetchOrders();
+
+      const token = ApiService.getToken() || '';
+      const socket = io('/orders', {
+        transports: ['websocket', 'polling'],
+        auth: { token },
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
+      });
+
+      socket.on('connect', () => {
+        console.log('[Warehouse Portal] Connected to Realtime Socket');
+      });
+
+      socket.on('new_order_created', (newOrder: Order) => {
+        console.log('[Warehouse Portal] New order received via Realtime Socket:', newOrder);
+        setOrders((prev) => [newOrder, ...prev.filter((o) => o.id !== newOrder.id)]);
+        setToastMessage(`🔔 ĐƠN HÀNG MỚI! Khách ${newOrder.user?.fullName || 'vừa đặt'} đơn ${newOrder.orderCode} (${newOrder.totalAmount?.toLocaleString('vi-VN')} đ)!`);
+        setTimeout(() => setToastMessage(null), 6000);
+      });
+
+      socket.on('order_status_updated', (payload: any) => {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === payload.orderId ? { ...o, status: payload.status, updatedAt: payload.updatedAt } : o))
+        );
+      });
+
+      return () => {
+        socket.disconnect();
+      };
     }
   }, [filterStatus, isAuthorized]);
 

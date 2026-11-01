@@ -147,4 +147,12 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.emit('order_status_updated', payload);
     this.logger.log(`📡 [Realtime Event] Emitted "order_status_updated" to room "${roomName}": Status = ${payload.status}`);
   }
+
+  /**
+   * F02: Broadcast new order event to warehouse staff and admins
+   */
+  broadcastNewOrder(order: any) {
+    this.server.emit('new_order_created', order);
+    this.logger.log(`📡 [Realtime Event] Emitted "new_order_created" for order ${order.orderCode}`);
+  }
 }

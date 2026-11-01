@@ -46,15 +46,13 @@ async function main() {
     await prisma.category.deleteMany();
     await prisma.user.deleteMany();
     const passwordSalt = 10;
-    // 2. Seed Users
-    const adminPassword = await bcrypt.hash('Admin@123456', passwordSalt);
-    const staffPassword = await bcrypt.hash('Staff@123456', passwordSalt);
-    const customerPassword = await bcrypt.hash('Customer@123456', passwordSalt);
+    // 2. Seed Users (Demo@123)
+    const demoPassword = await bcrypt.hash('Demo@123', passwordSalt);
     const admin = await prisma.user.create({
         data: {
             email: 'admin@shopfast.vn',
-            password: adminPassword,
-            fullName: 'Quản Trị Viên ShopFast',
+            password: demoPassword,
+            fullName: 'Lê Minh Quản Trị (Admin)',
             phone: '0901111222',
             role: client_1.Role.ADMIN,
         },
@@ -62,8 +60,8 @@ async function main() {
     const staff = await prisma.user.create({
         data: {
             email: 'warehouse@shopfast.vn',
-            password: staffPassword,
-            fullName: 'Trần Văn Kho (Staff)',
+            password: demoPassword,
+            fullName: 'Nguyễn Hoàng Kho Vận (Staff)',
             phone: '0903333444',
             role: client_1.Role.STAFF,
         },
@@ -71,13 +69,22 @@ async function main() {
     const customer = await prisma.user.create({
         data: {
             email: 'customer@shopfast.vn',
-            password: customerPassword,
-            fullName: 'Lê Hoàng Khách Hàng',
+            password: demoPassword,
+            fullName: 'Bùi Phạm Chí Nhân',
             phone: '0905555666',
             role: client_1.Role.CUSTOMER,
         },
     });
-    console.log('✅ Seeded 3 system users (Admin, Warehouse Staff, Customer).');
+    const customer2 = await prisma.user.create({
+        data: {
+            email: 'nguyenan@shopfast.vn',
+            password: demoPassword,
+            fullName: 'Nguyễn Văn An',
+            phone: '0912345678',
+            role: client_1.Role.CUSTOMER,
+        },
+    });
+    console.log('✅ Seeded realistic Vietnamese users with password Demo@123.');
     // 3. Seed Categories
     const catPhones = await prisma.category.create({
         data: {
@@ -296,9 +303,9 @@ async function main() {
     console.log('🎉 Database seeding completed successfully!');
     console.log('----------------------------------------------------');
     console.log('📌 Demo Credentials:');
-    console.log('   Admin:     admin@shopfast.vn     / Admin@123456');
-    console.log('   Staff:     warehouse@shopfast.vn / Staff@123456');
-    console.log('   Customer:  customer@shopfast.vn  / Customer@123456');
+    console.log('   Admin:     admin@shopfast.vn     / Demo@123');
+    console.log('   Staff:     warehouse@shopfast.vn / Demo@123');
+    console.log('   Customer:  customer@shopfast.vn  / Demo@123');
     console.log('   Sample Order Code: SF-DEMO-001');
     console.log('----------------------------------------------------');
 }
