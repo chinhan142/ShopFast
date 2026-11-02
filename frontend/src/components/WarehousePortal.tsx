@@ -70,7 +70,7 @@ export const WarehousePortal: React.FC<WarehousePortalProps> = ({ currentUser, o
     setUpdatingId(orderId);
     try {
       const updated = await ApiService.updateOrderStatus(orderId, newStatus);
-      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, ...updated, user: updated.user || o.user } : o)));
       setToastMessage(`Đã cập nhật đơn ${updated.orderCode} sang "${newStatus}". Tín hiệu Realtime WebSocket đã phát tới khách!`);
       setTimeout(() => setToastMessage(null), 5000);
     } catch (err: any) {

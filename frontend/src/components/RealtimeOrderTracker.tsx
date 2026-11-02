@@ -1,6 +1,6 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
-import { CheckCircle2, Clock, Truck, Package, XCircle, Wifi, RefreshCw, AlertCircle, Search, UserCheck } from 'lucide-react';
+import { CheckCircle2, Clock, Truck, Package, XCircle, Wifi, RefreshCw, AlertCircle, Search, UserCheck, Ban } from 'lucide-react';
 import { Order, OrderStatus, User } from '../types';
 import { ApiService } from '../services/api';
 
@@ -33,8 +33,17 @@ export const RealtimeOrderTracker: React.FC<RealtimeOrderTrackerProps> = ({
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelRequested, setCancelRequested] = useState(false);
 
+  useEffect(() => {
+    setCancelRequested(false);
+  }, [currentOrder?.id]);
+
   const handleRequestCancel = async () => {
     if (!currentOrder || isCancelling) return;
+    if (!currentUser) {
+      alert('Vui lòng đăng nhập bằng tài khoản đặt hàng để yêu cầu hủy đơn.');
+      if (onOpenAuthModal) onOpenAuthModal();
+      return;
+    }
     if (!window.confirm(`Bạn có chắc chắn muốn gửi yêu cầu hủy đơn hàng ${currentOrder.orderCode}?`)) return;
 
     setIsCancelling(true);
@@ -326,6 +335,31 @@ export const RealtimeOrderTracker: React.FC<RealtimeOrderTrackerProps> = ({
               <div>
                 <span className="font-bold">Đơn hàng này đã bị hủy.</span> Vui lòng liên hệ Trợ lý AI CSKH nếu quý khách cần trợ giúp thêm.
               </div>
+            </div>
+          )}
+
+          {/* F02 Order Actions: Request Cancel for PENDING / CONFIRMED */}
+          {(currentOrder.status === 'PENDING' || currentOrder.status === 'CONFIRMED') && (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+              <div className="text-xs text-slate-600">
+                <span className="font-bold text-slate-800">Cần đổi ý hoặc hủy đơn?</span> Quý khách có thể gửi yêu cầu hủy trực tuyến trước khi đơn giao cho Shipper.
+              </div>
+              <button
+                type="button"
+                onClick={handleRequestCancel}
+                disabled={isCancelling || cancelRequested}
+                className={"px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 " + (cancelRequested ? "bg-amber-100 text-amber-800 border border-amber-300 cursor-not-allowed" : "bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 hover:border-rose-400 active:scale-95 shadow-sm")}
+              >
+                <Ban className="w-3.5 h-3.5" />
+                {cancelRequested ? "Đã gửi yêu cầu hủy (Chờ kho duyệt)" : isCancelling ? "Đang gửi..." : "Yêu cầu hủy đơn"}
+              </button>
+            </div>
+          )}
+
+          {(currentOrder.status === 'SHIPPING' || currentOrder.status === 'DELIVERED') && (
+            <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 text-xs text-amber-800 flex items-center gap-2.5">
+              <Truck className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Đơn hàng đã bàn giao vận chuyển ({currentOrder.status}). Theo quy định hệ thống, không thể hủy đơn trực tuyến tại khâu này.</span>
             </div>
           )}
 

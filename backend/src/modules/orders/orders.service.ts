@@ -115,6 +115,14 @@ export class OrdersService {
               },
             },
           },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
+            },
+          },
         },
       });
 
@@ -185,6 +193,14 @@ export class OrdersService {
                   imageUrl: true,
                 },
               },
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
             },
           },
         },
@@ -336,6 +352,14 @@ export class OrdersService {
                 product: true,
               },
             },
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                email: true,
+                phone: true,
+              },
+            },
           },
         });
 
@@ -353,6 +377,14 @@ export class OrdersService {
           items: {
             include: {
               product: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
             },
           },
         },
