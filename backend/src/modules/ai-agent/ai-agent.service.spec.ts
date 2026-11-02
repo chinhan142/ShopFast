@@ -64,9 +64,31 @@ describe('AiAgentService (F01 AI CSKH & Tool Calling)', () => {
       expect(result.reply).toContain('Nhân viên CSKH con người');
     });
 
-    it('should query real database for order tracking tool calling', async () => {
+    it('should query real database for order tracking tool calling when authenticated', async () => {
       (ordersService.findOrderByCode as jest.Mock).mockResolvedValue({
         id: 'ord-1',
+        userId: 'usr-1',
+        orderCode: 'SF-DEMO-001',
+        status: OrderStatus.CONFIRMED,
+        totalAmount: 39980000,
+        user: { fullName: 'Bùi Phạm Chí Nhân', email: 'customer@shopfast.vn' },
+        items: [{ product: { name: 'iPhone 16 Pro Max' }, quantity: 1 }],
+      });
+
+      const result = await service.chatWithCustomer(
+        { message: 'Kiểm tra giúp tôi đơn hàng SF-DEMO-001' },
+        { userId: 'usr-1', email: 'customer@shopfast.vn', role: 'CUSTOMER' },
+      );
+
+      expect(result.reply).toContain('SF-DEMO-001');
+      expect(result.reply).toContain('CONFIRMED');
+      expect(result.usedTools).toContain('get_order_status');
+    });
+
+    it('should protect customer privacy and require login for unauthenticated guests', async () => {
+      (ordersService.findOrderByCode as jest.Mock).mockResolvedValue({
+        id: 'ord-1',
+        userId: 'usr-1',
         orderCode: 'SF-DEMO-001',
         status: OrderStatus.CONFIRMED,
         totalAmount: 39980000,
@@ -78,7 +100,8 @@ describe('AiAgentService (F01 AI CSKH & Tool Calling)', () => {
       });
 
       expect(result.reply).toContain('SF-DEMO-001');
-      expect(result.reply).toContain('CONFIRMED');
+      expect(result.reply).toContain('Đăng Nhập');
+      expect(result.reply).not.toContain('CONFIRMED');
       expect(result.usedTools).toContain('get_order_status');
     });
   });

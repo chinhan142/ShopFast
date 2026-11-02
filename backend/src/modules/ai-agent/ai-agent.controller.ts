@@ -1,5 +1,5 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { AiAgentService } from './ai-agent.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
@@ -20,9 +20,9 @@ export class AiAgentController {
   @ApiResponse({ status: 200, description: 'Phản hồi từ AI kèm danh sách các công cụ đã được gọi' })
   chatWithAi(
     @Body() dto: ChatMessageDto,
-    @CurrentUser('email') email?: string,
+    @CurrentUser() user?: any,
   ) {
-    return this.aiService.chatWithCustomer(dto, email);
+    return this.aiService.chatWithCustomer(dto, user);
   }
 
   @Public()

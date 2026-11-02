@@ -20,28 +20,41 @@ export class AiAgentService {
    * F01: AI CSKH Chat with Function Calling / Tool Calling
    * Uses native fetch with Zero external supply chain risk (No CVEs)
    */
-  async chatWithCustomer(dto: ChatMessageDto, userEmail?: string) {
+  async chatWithCustomer(dto: ChatMessageDto, currentUser?: any) {
     const apiKey = this.configService.get<string>('AI_API_KEY');
     const baseUrl = this.configService.get<string>('AI_BASE_URL') || 'https://api.deepseek.com';
     const model = this.configService.get<string>('AI_MODEL') || 'deepseek-chat';
 
     // If API key is not yet provided in local dev, provide safe rule-based intelligent simulation
     if (!apiKey || apiKey === 'your_ai_api_key_here') {
-      return this.handleFallbackOfflineResponse(dto.message);
+      return this.handleFallbackOfflineResponse(dto.message, currentUser);
     }
+
+    const userContextPrompt = currentUser
+      ? `\nTHÔNG TIN NGƯỜI DÙNG HIỆN TẠI:
+- Họ tên: ${currentUser.fullName || 'Khách hàng'}
+- Email: ${currentUser.email}
+- Vai trò: ${currentUser.role}`
+      : `\nTHÔNG TIN NGƯỜI DÙNG HIỆN TẠI:
+- Khách vãng lai (CHƯA ĐĂNG NHẬP).`;
 
     const systemPrompt = `
 Bạn là Trợ lý AI Chăm sóc Khách hàng chính thức của sàn thương mại điện tử ShopFast.
 QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
 1. Bạn CHỈ được trả lời các thắc mắc liên quan trực tiếp đến sàn TMĐT ShopFast (sản phẩm, giá, tồn kho, đơn hàng, chính sách giao hàng).
    - Nếu khách hàng hỏi các chủ đề ngoài phạm vi (chính trị, lập trình không liên quan, thời tiết, tin tức bên ngoài...), bạn phải TỪ CHỐI LỊCH SỰ: "Dạ xin lỗi quý khách, em là trợ lý ảo chuyên hỗ trợ thông tin mua sắm tại ShopFast nên không thể giải đáp chủ đề này. Em có thể hỗ trợ gì cho quý khách về đơn hàng hoặc sản phẩm tại ShopFast không ạ?"
-2. TUYỆT ĐỐI KHÔNG BỊA ĐẶT (Anti-Hallucination):
-   - Khi khách hàng hỏi tình trạng một đơn hàng, bạn BẮT BUỘC phải gọi công cụ "get_order_status". Nếu chưa có mã đơn, hãy xin khách cung cấp mã (ví dụ: SF-DEMO-001).
+2. BẢO MẬT DỮ LIỆU & QUYỀN RIÊNG TƯ KHÁCH HÀNG (Anti-Information Leakage):
+   - Khi khách hàng hỏi tình trạng một đơn hàng, bạn BẮT BUỘC phải gọi công cụ "get_order_status".
+   - Nếu kết quả công cụ trả về yêu cầu đăng nhập ("requiresAuth": true): Bạn TUYỆT ĐỐI KHÔNG tiết lộ thông tin chi tiết đơn hàng (không nói tên hàng, tổng tiền, địa chỉ, người nhận), mà phải trả lời lịch sự: "Dạ em tìm thấy đơn hàng trên hệ thống. Tuy nhiên vì lý do bảo mật thông tin cá nhân và bảo vệ quyền riêng tư khách hàng, quý khách vui lòng Đăng Nhập tài khoản ShopFast để tra cứu chi tiết đơn hàng của mình ạ!"
+   - Nếu kết quả công cụ báo không có quyền truy cập ("accessDenied": true): Bạn phải từ chối lịch sự: "Dạ vì lý do bảo mật quyền riêng tư khách hàng, đơn hàng này không thuộc về tài khoản quý khách đang đăng nhập. Quý khách chỉ có thể tra cứu đơn hàng do chính tài khoản của mình đặt ạ!"
+   - Tuyệt đối không tiết lộ số điện thoại đầy đủ mà chỉ hiển thị số đã che bảo mật (ví dụ: 090****666).
+3. TUYỆT ĐỐI KHÔNG BỊA ĐẶT (Anti-Hallucination):
    - Khi khách hàng hỏi về tồn kho hay giá sản phẩm, bạn BẮT BUỘC phải gọi công cụ "check_product_stock".
-   - Không bao giờ suy đoán đơn hàng đã giao hay còn hàng khi chưa tra cứu dữ liệu thực tế.
-3. QUY TẮC HUMAN-IN-THE-LOOP:
+   - Không bao giờ suy đoán đơn hàng đã giao hay còn hàng khi chưa tra cứu dữ liệu thực tế từ công cụ.
+4. QUY TẮC HUMAN-IN-THE-LOOP:
    - Nếu khách hàng yêu cầu HỦY ĐƠN HÀNG, HOÀN TIỀN, hoặc THAY ĐỔI ĐỊA CHỈ NHẬN HÀNG: Bạn KHÔNG được tự ý thực hiện mà phải trả lời rằng: "Em đã ghi nhận yêu cầu [hủy đơn/hoàn tiền] của quý khách cho đơn hàng [Mã đơn]. Do đây là thao tác bảo mật quan trọng, yêu cầu này đã được chuyển tiếp tới Nhân viên Hỗ trợ (Human-in-the-loop) để kiểm tra và xác nhận trực tiếp với quý khách trong vòng 15-30 phút."
-4. Phong cách: Thân thiện, lịch sự, xưng "em", gọi khách là "quý khách" hoặc "bạn", dùng tiếng Việt chuẩn mực.
+5. Phong cách: Thân thiện, lịch sự, xưng "em", gọi khách là "quý khách" hoặc "bạn", dùng tiếng Việt chuẩn mực.
+${userContextPrompt}
 `;
 
     // Tool specifications (OpenAI / DeepSeek compatible JSON Schema)
@@ -114,14 +127,14 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
       if (!response.ok) {
         const errorText = await response.text();
         this.logger.error(`AI API call failed [${response.status}]: ${errorText}`);
-        return this.handleFallbackOfflineResponse(dto.message);
+        return this.handleFallbackOfflineResponse(dto.message, currentUser);
       }
 
       const data = await response.json();
       const choice = data.choices?.[0];
 
       if (!choice) {
-        return this.handleFallbackOfflineResponse(dto.message);
+        return this.handleFallbackOfflineResponse(dto.message, currentUser);
       }
 
       const responseMessage = choice.message;
@@ -142,7 +155,7 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
           let toolResult = '';
 
           if (fnName === 'get_order_status') {
-            toolResult = await this.executeGetOrderStatus(args.orderCode);
+            toolResult = await this.executeGetOrderStatus(args.orderCode, currentUser);
           } else if (fnName === 'check_product_stock') {
             toolResult = await this.executeCheckProductStock(args.sku);
           } else {
@@ -185,14 +198,14 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
       };
     } catch (err: any) {
       this.logger.error(`Error in chatWithCustomer: ${err.message}`, err.stack);
-      return this.handleFallbackOfflineResponse(dto.message);
+      return this.handleFallbackOfflineResponse(dto.message, currentUser);
     }
   }
 
   /**
-   * F01 Tool 1: Real order status query against PostgreSQL
+   * F01 Tool 1: Real order status query against PostgreSQL with Strict Privacy Protection
    */
-  private async executeGetOrderStatus(orderCode?: string): Promise<string> {
+  private async executeGetOrderStatus(orderCode?: string, currentUser?: any): Promise<string> {
     if (!orderCode) {
       return JSON.stringify({ error: 'Mã đơn hàng không được để trống.' });
     }
@@ -205,6 +218,34 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
       });
     }
 
+    // 🔒 Security Check 1: User is not authenticated (Guest)
+    if (!currentUser || !currentUser.email) {
+      return JSON.stringify({
+        found: true,
+        requiresAuth: true,
+        orderCode: order.orderCode,
+        message: 'Đơn hàng tồn tại trên hệ thống. Tuy nhiên, vì chính sách bảo mật thông tin và quyền riêng tư khách hàng, quý khách bắt buộc phải đăng nhập vào tài khoản ShopFast để tra cứu chi tiết đơn hàng này.',
+      });
+    }
+
+    // 🔒 Security Check 2: User is logged in as someone else (Not Owner and Not Admin/Staff)
+    const isOwner = (order.userId && order.userId === currentUser.userId) || 
+                    (order.user && order.user.email?.toLowerCase() === currentUser.email?.toLowerCase());
+    const isStaffOrAdmin = currentUser.role === 'STAFF' || currentUser.role === 'ADMIN';
+
+    if (!isOwner && !isStaffOrAdmin) {
+      return JSON.stringify({
+        found: true,
+        accessDenied: true,
+        orderCode: order.orderCode,
+        message: `Đơn hàng "${order.orderCode}" không thuộc về tài khoản đang đăng nhập (${currentUser.email}). Vì lý do bảo mật quyền riêng tư khách hàng, quý khách chỉ có thể tra cứu đơn hàng do chính tài khoản của mình đặt.`,
+      });
+    }
+
+    // 🔒 Security Check 3: Authorized access -> Return data with masked PII
+    const maskedPhone = order.phone ? order.phone.replace(/(\d{3})\d+(\d{3})/, '$1****$2') : '';
+    const maskedAddress = order.shippingAddress ? this.maskAddress(order.shippingAddress) : '';
+
     return JSON.stringify({
       found: true,
       orderCode: order.orderCode,
@@ -212,13 +253,22 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
       totalAmount: order.totalAmount,
       customerName: order.user?.fullName,
       createdAt: order.createdAt,
+      phoneMasked: maskedPhone,
+      shippingAddressMasked: maskedAddress,
       items: order.items.map((i) => ({
         productName: i.product?.name,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
       })),
-      shippingAddress: order.shippingAddress,
     });
+  }
+
+  private maskAddress(address: string): string {
+    const parts = address.split(',');
+    if (parts.length > 2) {
+      return '***, ' + parts.slice(1).map((p) => p.trim()).join(', ');
+    }
+    return address;
   }
 
   /**
@@ -233,9 +283,13 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
     let product = await this.productsService.findBySku(skuOrKeyword);
 
     if (!product) {
-      // Try searching by name/keyword
-      const searchRes = await this.productsService.findAll({ search: skuOrKeyword, limit: 1 });
-      if (searchRes.items.length > 0) {
+      // Fallback search by keyword in name
+      const searchRes = await this.productsService.findAll({
+        search: skuOrKeyword,
+        limit: 1,
+      });
+
+      if (searchRes.items && searchRes.items.length > 0) {
         product = searchRes.items[0];
       }
     }
@@ -289,7 +343,7 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
   /**
    * Safe intelligent offline fallback when API key is not configured
    */
-  private async handleFallbackOfflineResponse(message: string) {
+  private async handleFallbackOfflineResponse(message: string, currentUser?: any) {
     const lower = message.toLowerCase();
 
     // Check for order code pattern (e.g. SF-...)
@@ -298,17 +352,41 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
       const orderCode = orderMatch[0].toUpperCase();
       const order = await this.ordersService.findOrderByCode(orderCode);
 
-      if (order) {
-        return {
-          reply: `Dạ em đã kiểm tra trên hệ thống ShopFast: Đơn hàng **${order.orderCode}** của quý khách hiện đang ở trạng thái **${order.status}** (Tổng giá trị: ${order.totalAmount.toLocaleString('vi-VN')} VND). Đơn hàng bao gồm: ${order.items.map((i) => `${i.product.name} (x${i.quantity})`).join(', ')}. Em có thể hỗ trợ gì thêm cho quý khách không ạ?`,
-          usedTools: ['get_order_status'],
-        };
-      } else {
+      if (!order) {
         return {
           reply: `Dạ em đã tra cứu trên hệ thống nhưng không tìm thấy đơn hàng có mã **${orderCode}**. Quý khách vui lòng kiểm tra lại mã đơn hàng chính xác giúp em nhé ạ!`,
           usedTools: ['get_order_status'],
         };
       }
+
+      // 🔒 Privacy Check 1: Unauthenticated Guest
+      if (!currentUser || !currentUser.email) {
+        return {
+          reply: `Dạ em đã tìm thấy đơn hàng **${order.orderCode}** trên hệ thống ShopFast. Tuy nhiên, vì **chính sách bảo mật quyền riêng tư cá nhân và dữ liệu người dùng**, quý khách vui lòng **Đăng Nhập** tài khoản để tra cứu chi tiết tiến trình đơn hàng và địa chỉ nhận hàng ạ! 🔒`,
+          usedTools: ['get_order_status'],
+        };
+      }
+
+      // 🔒 Privacy Check 2: Different Customer (Unauthorized)
+      const isOwner = (order.userId && order.userId === currentUser.userId) || 
+                      (order.user && order.user.email?.toLowerCase() === currentUser.email?.toLowerCase());
+      const isStaffOrAdmin = currentUser.role === 'STAFF' || currentUser.role === 'ADMIN';
+
+      if (!isOwner && !isStaffOrAdmin) {
+        return {
+          reply: `Dạ vì lý do bảo mật quyền riêng tư khách hàng, đơn hàng **${order.orderCode}** không thuộc về tài khoản đang đăng nhập (${currentUser.email}). Quý khách chỉ có thể tra cứu các đơn hàng do chính tài khoản của mình đặt ạ! 🔒`,
+          usedTools: ['get_order_status'],
+        };
+      }
+
+      // 🔒 Privacy Check 3: Authorized access -> Show details with masked PII
+      const maskedPhone = order.phone ? order.phone.replace(/(\d{3})\d+(\d{3})/, '$1****$2') : '';
+      const maskedAddress = order.shippingAddress ? this.maskAddress(order.shippingAddress) : '';
+
+      return {
+        reply: `Dạ em đã kiểm tra trên hệ thống ShopFast: Đơn hàng **${order.orderCode}** của quý khách (${order.user?.fullName}) hiện đang ở trạng thái **${order.status}** (Tổng giá trị: ${order.totalAmount.toLocaleString('vi-VN')} VND).\n- Sản phẩm: ${order.items.map((i) => `${i.product.name} (x${i.quantity})`).join(', ')}\n- Địa chỉ: ${maskedAddress}\n- SĐT: ${maskedPhone}\nEm có thể hỗ trợ gì thêm cho quý khách không ạ?`,
+        usedTools: ['get_order_status'],
+      };
     }
 
     // Check for SKU / Stock queries

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Cpu, Shield, PackageCheck, Activity, LogOut, ChevronDown, LogIn, UserPlus, Lock } from 'lucide-react';
+import { ShoppingBag, Cpu, Shield, PackageCheck, Activity, LogOut, ChevronDown, LogIn, UserPlus, Lock, Menu, X, Store, Network } from 'lucide-react';
 import { User } from '../types';
 
 interface HeaderProps {
@@ -24,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   onScrollToArchitecture,
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -139,7 +140,17 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
 
           {/* Right Action Controls */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Split Screen / Mobile Menu Button */}
+            <button
+              onClick={() => setShowMobileNav(!showMobileNav)}
+              className="md:hidden p-2 text-slate-700 hover:text-rose-600 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 cursor-pointer flex items-center justify-center"
+              title="Menu điều hướng"
+              aria-label="Toggle navigation menu"
+            >
+              {showMobileNav ? <X className="w-4 h-4 text-rose-600" /> : <Menu className="w-4 h-4" />}
+            </button>
+
             {/* Cart Button */}
             <button
               onClick={openCart}
@@ -191,6 +202,32 @@ export const Header: React.FC<HeaderProps> = ({
                       Đơn hàng của tôi
                     </button>
 
+                    {currentUser && (currentUser.role === 'STAFF' || currentUser.role === 'ADMIN') && (
+                      <button
+                        onClick={() => {
+                          setCurrentTab('warehouse');
+                          setShowUserDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-50 rounded-xl transition-colors mb-1 cursor-pointer flex items-center gap-2"
+                      >
+                        <PackageCheck className="w-3.5 h-3.5" />
+                        <span>Cổng Kho Vận</span>
+                      </button>
+                    )}
+
+                    {currentUser && currentUser.role === 'ADMIN' && (
+                      <button
+                        onClick={() => {
+                          setCurrentTab('devops');
+                          setShowUserDropdown(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 rounded-xl transition-colors mb-1 cursor-pointer flex items-center gap-2"
+                      >
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>Quản Trị Hệ Thống</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         onLogout();
@@ -225,6 +262,88 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Split-Screen & Mobile Navigation Drawer */}
+      {showMobileNav && (
+        <div className="md:hidden border-t border-slate-200/90 bg-white/95 backdrop-blur-md px-4 py-3 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="grid grid-cols-2 gap-2 max-w-7xl mx-auto">
+            <button
+              onClick={() => {
+                setCurrentTab('store');
+                setShowMobileNav(false);
+              }}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                currentTab === 'store'
+                  ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200 shadow-xs'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-100'
+              }`}
+            >
+              <Store className="w-4 h-4 text-rose-600" />
+              <span>Cửa Hàng</span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleTrackerClick();
+                setShowMobileNav(false);
+              }}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                currentTab === 'tracker'
+                  ? 'bg-rose-50 text-rose-700 font-bold border border-rose-200 shadow-xs'
+                  : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-100'
+              }`}
+            >
+              <PackageCheck className="w-4 h-4 text-rose-600" />
+              <span>Theo Dõi Đơn</span>
+            </button>
+
+            <button
+              onClick={() => {
+                handleArchitectureClick();
+                setShowMobileNav(false);
+              }}
+              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-100"
+            >
+              <Network className="w-4 h-4 text-slate-500" />
+              <span>Kiến Trúc Kỹ Thuật</span>
+            </button>
+
+            {currentUser && (currentUser.role === 'STAFF' || currentUser.role === 'ADMIN') && (
+              <button
+                onClick={() => {
+                  setCurrentTab('warehouse');
+                  setShowMobileNav(false);
+                }}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  currentTab === 'warehouse'
+                    ? 'bg-amber-50 text-amber-800 font-bold border border-amber-300 shadow-xs'
+                    : 'bg-amber-50/50 text-amber-700 hover:bg-amber-100/60 border border-amber-200/60'
+                }`}
+              >
+                <PackageCheck className="w-4 h-4 text-amber-600" />
+                <span>Cổng Kho Vận</span>
+              </button>
+            )}
+
+            {currentUser && currentUser.role === 'ADMIN' && (
+              <button
+                onClick={() => {
+                  setCurrentTab('devops');
+                  setShowMobileNav(false);
+                }}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  currentTab === 'devops'
+                    ? 'bg-rose-50 text-rose-800 font-bold border border-rose-300 shadow-xs'
+                    : 'bg-rose-50/50 text-rose-700 hover:bg-rose-100/60 border border-rose-200/60'
+                }`}
+              >
+                <Activity className="w-4 h-4 text-rose-600" />
+                <span>Quản Trị Hệ Thống</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 };
