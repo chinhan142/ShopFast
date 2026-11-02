@@ -257,6 +257,16 @@ export const WarehousePortal: React.FC<WarehousePortalProps> = ({ currentUser, o
                               Giao thành công
                             </button>
                           )}
+                          {(order.status === 'PENDING' || order.status === 'CONFIRMED') && (
+                            <button
+                              disabled={isUpdating}
+                              onClick={() => handleUpdateStatus(order.id, 'CANCELLED')}
+                              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+                              title="Hủy đơn và hoàn tồn kho"
+                            >
+                              Hủy đơn
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
