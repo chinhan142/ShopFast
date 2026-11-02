@@ -51,8 +51,12 @@ QUY TẮC BẢO MẬT & NGHIỆP VỤ BẮT BUỘC:
 3. TUYỆT ĐỐI KHÔNG BỊA ĐẶT (Anti-Hallucination):
    - Khi khách hàng hỏi về tồn kho hay giá sản phẩm, bạn BẮT BUỘC phải gọi công cụ "check_product_stock".
    - Không bao giờ suy đoán đơn hàng đã giao hay còn hàng khi chưa tra cứu dữ liệu thực tế từ công cụ.
-4. QUY TẮC HUMAN-IN-THE-LOOP:
-   - Nếu khách hàng yêu cầu HỦY ĐƠN HÀNG, HOÀN TIỀN, hoặc THAY ĐỔI ĐỊA CHỈ NHẬN HÀNG: Bạn KHÔNG được tự ý thực hiện mà phải trả lời rằng: "Em đã ghi nhận yêu cầu [hủy đơn/hoàn tiền] của quý khách cho đơn hàng [Mã đơn]. Do đây là thao tác bảo mật quan trọng, yêu cầu này đã được chuyển tiếp tới Nhân viên Hỗ trợ (Human-in-the-loop) để kiểm tra và xác nhận trực tiếp với quý khách trong vòng 15-30 phút."
+4. QUY TẮC HỦY ĐƠN & HUMAN-IN-THE-LOOP:
+   - Nếu khách hàng yêu cầu HỦY ĐƠN HÀNG hoặc HOÀN TIỀN:
+     + Bạn BẮT BUỘC phải gọi công cụ "request_order_cancellation" kèm mã đơn hàng.
+     + Nếu kết quả trả về "cannotCancel": true (đơn hàng đã sang SHIPPING hoặc DELIVERED): Bạn phải thông báo rõ ràng rằng đơn hàng đã giao cho đơn vị vận chuyển nên theo quy định không thể hủy được nữa.
+     + Nếu kết quả trả về "success": true: Bạn thông báo đã gửi thông báo khẩn cấp đến Cổng Kho Vận của nhân viên kho Nguyễn Hoàng Long (Human-in-the-loop) để xác nhận hủy và hoàn kho.
+     + Nếu khách chưa cung cấp mã đơn: Xin khách mã đơn để kiểm tra.
 5. Phong cách: Thân thiện, lịch sự, xưng "em", gọi khách là "quý khách" hoặc "bạn", dùng tiếng Việt chuẩn mực.
 ${userContextPrompt}
 `;
@@ -90,6 +94,27 @@ ${userContextPrompt}
               },
             },
             required: ['sku'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'request_order_cancellation',
+          description: 'Gửi yêu cầu hủy đơn hàng đến bộ phận Kho vận khi khách hàng yêu cầu hủy đơn hoặc hoàn tiền. Bắt buộc có mã đơn hàng.',
+          parameters: {
+            type: 'object',
+            properties: {
+              orderCode: {
+                type: 'string',
+                description: 'Mã đơn hàng khách muốn hủy (ví dụ: SF-DEMO-001 hoặc SF-YYYYMMDD-XXXX)',
+              },
+              reason: {
+                type: 'string',
+                description: 'Lý do hủy đơn do khách hàng cung cấp',
+              },
+            },
+            required: ['orderCode'],
           },
         },
       },
@@ -158,6 +183,9 @@ ${userContextPrompt}
             toolResult = await this.executeGetOrderStatus(args.orderCode, currentUser);
           } else if (fnName === 'check_product_stock') {
             toolResult = await this.executeCheckProductStock(args.sku);
+          } else if (fnName === 'request_order_cancellation') {
+            const cancelRes = await this.ordersService.handleAiCancelRequest(args.orderCode, currentUser);
+            toolResult = JSON.stringify(cancelRes);
           } else {
             toolResult = JSON.stringify({ error: `Tool ${fnName} not recognized.` });
           }
@@ -403,10 +431,35 @@ ${userContextPrompt}
       }
     }
 
-    // Check for refund / cancellation (Human-in-the-loop)
+    // Check for refund / cancellation (Human-in-the-loop with Shipping Restriction)
     if (lower.includes('hủy đơn') || lower.includes('hoàn tiền') || lower.includes('đổi trả')) {
+      const orderMatch = message.match(/SF-[A-Z0-9-]+/i);
+      if (orderMatch) {
+        const orderCode = orderMatch[0].toUpperCase();
+        const cancelRes = await this.ordersService.handleAiCancelRequest(orderCode, currentUser);
+
+        if (cancelRes.cannotCancel) {
+          return {
+            reply: `Dạ rất tiếc, đơn hàng **${orderCode}** hiện đã được bàn giao cho bên vận chuyển (trạng thái: **${cancelRes.status}**) nên hệ thống không thể hỗ trợ hủy đơn được nữa ạ. Quý khách vui lòng nhận hàng hoặc liên hệ từ chối nhận với bên chuyển phát nhé ạ! 📦`,
+            usedTools: ['request_order_cancellation'],
+          };
+        }
+
+        if (cancelRes.success) {
+          return {
+            reply: `Dạ em đã kiểm tra: Đơn hàng **${orderCode}** đang ở trạng thái **${cancelRes.status}** và đủ điều kiện hủy. Em đã lập tức gửi thông báo khẩn yêu cầu hủy đơn tới **Cổng Kho Vận của nhân viên kho Nguyễn Hoàng Long (Human-in-the-loop)** để kiểm tra và xác nhận hoàn kho ngay cho quý khách ạ! 🔔`,
+            usedTools: ['request_order_cancellation'],
+          };
+        }
+
+        return {
+          reply: `Dạ em đã kiểm tra nhưng ${cancelRes.message} Quý khách vui lòng kiểm tra lại mã đơn hàng giúp em nhé ạ!`,
+          usedTools: ['request_order_cancellation'],
+        };
+      }
+
       return {
-        reply: 'Dạ em đã ghi nhận yêu cầu của quý khách. Vì đây là thao tác nhạy cảm liên quan đến tiền và hàng hóa, em đã tạo phiếu yêu cầu và chuyển tiếp tới Nhân viên CSKH con người (Human-in-the-loop) của ShopFast để kiểm tra và xử lý ngay cho quý khách trong ít phút ạ!',
+        reply: 'Dạ em đã ghi nhận nhu cầu của quý khách. Xin lưu ý: ShopFast chỉ hỗ trợ hủy đơn khi hàng chưa giao (trạng thái Chờ xác nhận hoặc Đã xác nhận kho). Quý khách vui lòng cung cấp mã đơn hàng (ví dụ: SF-DEMO-001) để em gửi thông báo khẩn tới Cổng Kho Vận xử lý ngay cho quý khách ạ! 🔔',
         usedTools: [],
       };
     }

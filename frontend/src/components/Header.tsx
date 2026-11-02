@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { ShoppingBag, Cpu, Shield, PackageCheck, Activity, LogOut, ChevronDown, LogIn, UserPlus, Lock, Menu, X, Store, Network } from 'lucide-react';
+import { ShoppingBag, Cpu, Shield, PackageCheck, Activity, LogOut, ChevronDown, LogIn, UserPlus, Lock, Menu, X, Store, Network, Bell, AlertCircle } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
+import { ApiService } from '../services/api';
 import { User } from '../types';
 
 interface HeaderProps {
@@ -25,6 +27,55 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
+  const [showNotiDropdown, setShowNotiDropdown] = useState(false);
+  const [activeToast, setActiveToast] = useState<{ id: string; type: string; title: string; message: string; time: string } | null>(null);
+  const [notifications, setNotifications] = useState<Array<{ id: string; type: string; title: string; message: string; time: string; read: boolean }>>([
+    {
+      id: 'init-1',
+      type: 'system',
+      title: 'Hệ thống ShopFast',
+      message: 'Kênh thông báo Realtime đã sẵn sàng.',
+      time: 'Vừa xong',
+      read: true,
+    }
+  ]);
+
+  React.useEffect(() => {
+    const token = ApiService.getToken();
+    const wsUrl = window.location.origin;
+    const socketInstance: Socket = io(`${wsUrl}/orders`, {
+      path: '/socket.io',
+      auth: { token: token ? `Bearer ${token}` : undefined },
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 10,
+    });
+
+    const addNoti = (type: string, title: string, message: string) => {
+      const now = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+      const item = { id: Date.now().toString(), type, title, message, time: now, read: false };
+      setNotifications(prev => [item, ...prev.slice(0, 19)]);
+      setActiveToast(item);
+      setTimeout(() => setActiveToast(null), 6000);
+    };
+
+    socketInstance.on('order_cancel_requested', (data: any) => {
+      addNoti('cancel_request', '🚨 Yêu Cầu Hủy Đơn Hàng', `Khách hàng ${data.customerName} gửi yêu cầu hủy đơn ${data.orderCode}. Vui lòng kiểm tra tại Cổng Kho Vận!`);
+    });
+
+    socketInstance.on('new_order_created', (data: any) => {
+      addNoti('new_order', '📦 Đơn Hàng Mới', `Đơn hàng ${data.orderCode} vừa được đặt thành công (${data.totalAmount?.toLocaleString('vi-VN')} ₫).`);
+    });
+
+    socketInstance.on('order_status_updated', (data: any) => {
+      addNoti('status_update', '🚚 Cập Nhật Đơn Hàng', `Đơn ${data.orderCode} đã chuyển sang trạng thái: ${data.status}.`);
+    });
+
+    return () => {
+      socketInstance.disconnect();
+    };
+  }, [currentUser]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -150,6 +201,75 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {showMobileNav ? <X className="w-4 h-4 text-rose-600" /> : <Menu className="w-4 h-4" />}
             </button>
+
+            {/* Realtime Notification Bell */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowNotiDropdown(!showNotiDropdown);
+                  if (!showNotiDropdown) {
+                    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+                  }
+                }}
+                className="relative p-2.5 text-slate-700 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors border border-slate-200/60 hover:border-rose-200 cursor-pointer"
+                title="Thông báo hệ thống Realtime"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown Menu */}
+              {showNotiDropdown && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 py-3 px-3 z-50 animate-in fade-in zoom-in-95">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 px-2">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Bell className="w-3.5 h-3.5 text-rose-600" />
+                      Thông báo Realtime ({notifications.length})
+                    </span>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={() => setNotifications([])}
+                        className="text-[10px] text-slate-400 hover:text-rose-600 transition-colors"
+                      >
+                        Xóa tất cả
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-72 overflow-y-auto space-y-1.5">
+                    {notifications.length === 0 ? (
+                      <div className="py-6 text-center text-xs text-slate-400">
+                        Chưa có thông báo nào
+                      </div>
+                    ) : (
+                      notifications.map(n => (
+                        <div
+                          key={n.id}
+                          className={`p-2.5 rounded-xl border text-xs transition-all ${
+                            n.type === 'cancel_request'
+                              ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                              : n.type === 'new_order'
+                              ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                              : 'bg-slate-50 border-slate-200/80 text-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="font-bold flex items-center gap-1 text-[11px]">
+                              {n.title}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">{n.time}</span>
+                          </div>
+                          <p className="text-[11px] leading-relaxed opacity-90">{n.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Cart Button */}
             <button
@@ -342,6 +462,25 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
           </div>
+        </div>
+      )}
+          {/* Realtime Floating Toast Notification */}
+      {activeToast && (
+        <div className="fixed top-20 right-6 z-50 max-w-sm bg-slate-900/95 backdrop-blur-md text-white rounded-2xl p-4 shadow-2xl border border-slate-700/80 flex items-start gap-3 animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="w-8 h-8 rounded-xl bg-rose-600/30 border border-rose-500/40 flex items-center justify-center shrink-0 text-rose-400">
+            {activeToast.type === 'cancel_request' ? <AlertCircle className="w-4 h-4 text-rose-400" /> : <Bell className="w-4 h-4 text-amber-400" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h5 className="text-xs font-bold text-white mb-0.5">{activeToast.title}</h5>
+            <p className="text-[11px] text-slate-300 leading-snug">{activeToast.message}</p>
+            <span className="text-[9px] text-slate-400 mt-1 inline-block font-mono">{activeToast.time}</span>
+          </div>
+          <button
+            onClick={() => setActiveToast(null)}
+            className="text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </header>

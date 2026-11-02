@@ -1,4 +1,4 @@
-﻿import {
+import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
@@ -154,5 +154,20 @@ export class OrdersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   broadcastNewOrder(order: any) {
     this.server.emit('new_order_created', order);
     this.logger.log(`📡 [Realtime Event] Emitted "new_order_created" for order ${order.orderCode}`);
+  }
+
+  /**
+   * F02: Broadcast cancellation request from customer to warehouse staff & notification bell
+   */
+  broadcastCancelRequest(payload: {
+    orderId: string;
+    orderCode: string;
+    customerName: string;
+    customerEmail?: string;
+    reason?: string;
+    timestamp: string;
+  }) {
+    this.server.emit('order_cancel_requested', payload);
+    this.logger.log(`📡 [Realtime Event] Emitted "order_cancel_requested" for order ${payload.orderCode}`);
   }
 }

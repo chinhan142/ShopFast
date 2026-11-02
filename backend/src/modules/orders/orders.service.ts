@@ -372,4 +372,89 @@ export class OrdersService {
 
     return updatedOrder;
   }
+
+  async requestCancelOrder(userId: string, orderId: string, reason?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        user: { select: { id: true, fullName: true, email: true } },
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng ID: ${orderId}`);
+    }
+
+    if (order.userId !== userId) {
+      throw new ForbiddenException('Bạn chỉ có quyền yêu cầu hủy đơn hàng do chính bạn đặt.');
+    }
+
+    if (order.status === OrderStatus.SHIPPING || order.status === OrderStatus.DELIVERED) {
+      throw new BadRequestException(
+        `Đơn hàng "${order.orderCode}" hiện đang ở trạng thái ${order.status} (đã bàn giao vận chuyển), không thể hủy đơn trực tiếp.`
+      );
+    }
+
+    if (order.status === OrderStatus.CANCELLED) {
+      throw new BadRequestException(`Đơn hàng "${order.orderCode}" đã được hủy trước đó.`);
+    }
+
+    // Broadcast Realtime Cancel Request Event to Warehouse & Notification Bell
+    this.ordersGateway.broadcastCancelRequest({
+      orderId: order.id,
+      orderCode: order.orderCode,
+      customerName: order.user?.fullName || 'Khách hàng',
+      customerEmail: order.user?.email,
+      reason: reason?.trim() || 'Khách hàng yêu cầu hủy đơn qua giao diện',
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      message: `Yêu cầu hủy đơn ${order.orderCode} đã được chuyển trực tiếp đến Cổng Kho Vận của nhân viên kho.`,
+    };
+  }
+
+  async handleAiCancelRequest(orderCode: string, customer?: any) {
+    const order = await this.findOrderByCode(orderCode);
+    if (!order) {
+      return {
+        success: false,
+        message: `Không tìm thấy đơn hàng "${orderCode}" trên hệ thống ShopFast.`,
+      };
+    }
+
+    if (order.status === OrderStatus.SHIPPING || order.status === OrderStatus.DELIVERED) {
+      return {
+        success: false,
+        cannotCancel: true,
+        status: order.status,
+        message: `Đơn hàng "${order.orderCode}" hiện đang ở trạng thái ${order.status} (đã bàn giao vận chuyển). Theo quy định, không thể hủy đơn hàng đang giao.`,
+      };
+    }
+
+    if (order.status === OrderStatus.CANCELLED) {
+      return {
+        success: false,
+        alreadyCancelled: true,
+        message: `Đơn hàng "${order.orderCode}" đã ở trạng thái hủy trước đó.`,
+      };
+    }
+
+    // Broadcast Realtime Cancel Request Event to Warehouse & Notification Bell
+    this.ordersGateway.broadcastCancelRequest({
+      orderId: order.id,
+      orderCode: order.orderCode,
+      customerName: customer?.fullName || order.user?.fullName || 'Khách hàng',
+      customerEmail: customer?.email || order.user?.email,
+      reason: 'Yêu cầu hủy đơn qua Trợ lý AI CSKH (Human-in-the-loop)',
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      status: order.status,
+      message: `Đã gửi thông báo hủy đơn khẩn cấp đến Cổng Kho Vận của nhân viên kho Nguyễn Hoàng Long.`,
+    };
+  }
 }

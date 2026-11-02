@@ -82,6 +82,18 @@ export class OrdersController {
     return this.ordersService.findAllOrders(query);
   }
 
+  @Post(':id/cancel-request')
+  @Roles(Role.CUSTOMER, Role.STAFF, Role.ADMIN)
+  @ApiOperation({ summary: 'Khách hàng gửi yêu cầu hủy đơn hàng (Kèm kiểm tra trạng thái vận chuyển)' })
+  @ApiResponse({ status: 200, description: 'Gửi yêu cầu hủy đơn thành công' })
+  requestCancelOrder(
+    @Param('id') orderId: string,
+    @CurrentUser('userId') userId: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.ordersService.requestCancelOrder(userId, orderId, reason);
+  }
+
   @Patch(':id/status')
   @Roles(Role.STAFF, Role.ADMIN)
   @ApiOperation({ summary: 'Cập nhật trạng thái đơn hàng (Dành cho Nhân viên kho / Admin)' })

@@ -60,8 +60,8 @@ describe('AiAgentService (F01 AI CSKH & Tool Calling)', () => {
         message: 'Tôi muốn yêu cầu hủy đơn hàng và hoàn tiền lại',
       });
 
-      expect(result.reply).toContain('Human-in-the-loop');
-      expect(result.reply).toContain('Nhân viên CSKH con người');
+      expect(result.reply).toContain('Cổng Kho Vận');
+      expect(result.reply).toContain('hủy đơn');
     });
 
     it('should query real database for order tracking tool calling when authenticated', async () => {

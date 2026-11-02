@@ -30,6 +30,24 @@ export const RealtimeOrderTracker: React.FC<RealtimeOrderTrackerProps> = ({
   const [liveEventBanner, setLiveEventBanner] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelRequested, setCancelRequested] = useState(false);
+
+  const handleRequestCancel = async () => {
+    if (!currentOrder || isCancelling) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn gửi yêu cầu hủy đơn hàng ${currentOrder.orderCode}?`)) return;
+
+    setIsCancelling(true);
+    try {
+      const res = await ApiService.requestCancelOrder(currentOrder.id, 'Khách hàng yêu cầu hủy đơn từ màn hình theo dõi');
+      setCancelRequested(true);
+      setLiveEventBanner(`🔔 ${res.message}`);
+    } catch (err: any) {
+      alert(err.message || 'Không thể gửi yêu cầu hủy đơn.');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   // Load user's recent orders if logged in
   useEffect(() => {

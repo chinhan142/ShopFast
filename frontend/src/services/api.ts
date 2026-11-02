@@ -181,6 +181,13 @@ export class ApiService {
     });
   }
 
+  static async requestCancelOrder(id: string, reason?: string) {
+    return this.request<{ success: boolean; message: string }>(`/orders/${id}/cancel-request`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
   // --- AI Agent ---
   static async chatWithAi(message: string, history?: { role: 'user' | 'assistant'; content: string }[]) {
     return this.request<{ reply: string; usedTools: string[] }>('/ai/chat', {
