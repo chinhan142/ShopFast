@@ -91,9 +91,9 @@ Hệ thống sẽ tự động khởi động:
 ## 🔑 4. Tài khoản Demo có sẵn (Seed Data)
 | Vai trò (Role) | Email | Mật khẩu | Mục đích Demo |
 | :--- | :--- | :--- | :--- |
-| **Quản Trị Viên (Admin)** | `admin@shopfast.vn` | `Admin@123456` | Toàn quyền hệ thống, xem Swagger & Bull-board |
-| **Nhân Viên Kho (Staff)** | `warehouse@shopfast.vn` | `Staff@123456` | Cổng kho vận, bấm đổi trạng thái đơn kích hoạt Realtime |
-| **Khách Hàng (Customer)** | `customer@shopfast.vn` | `Customer@123456` | Mua hàng, xem theo dõi đơn realtime, chat AI CSKH |
+| **Quản Trị Viên (Admin)** | `admin@shopfast.vn` | `Demo@123` | Toàn quyền hệ thống, xem Swagger & Bull-board |
+| **Nhân Viên Kho (Staff)** | `warehouse@shopfast.vn` | `Demo@123` | Cổng kho vận, bấm đổi trạng thái đơn kích hoạt Realtime |
+| **Khách Hàng (Customer)** | `customer@shopfast.vn` | `Demo@123` | Mua hàng, xem theo dõi đơn realtime, chat AI CSKH |
 
 * **Mã đơn hàng mẫu sẵn sàng test:** `SF-DEMO-001`
 

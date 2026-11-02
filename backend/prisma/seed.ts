@@ -23,7 +23,7 @@ async function main() {
     data: {
       email: 'admin@shopfast.vn',
       password: demoPassword,
-      fullName: 'Lê Minh Quản Trị (Admin)',
+      fullName: 'Lê Minh Tuấn',
       phone: '0901111222',
       role: Role.ADMIN,
     },
@@ -33,7 +33,7 @@ async function main() {
     data: {
       email: 'warehouse@shopfast.vn',
       password: demoPassword,
-      fullName: 'Nguyễn Hoàng Kho Vận (Staff)',
+      fullName: 'Nguyễn Hoàng Long',
       phone: '0903333444',
       role: Role.STAFF,
     },
